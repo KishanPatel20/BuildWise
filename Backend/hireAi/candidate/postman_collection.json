@@ -1,0 +1,676 @@
+{
+	"info": {
+		"_postman_id": "a1b2c3d4-e5f6-g7h8-i9j0-k1l2m3n4o5p6",
+		"name": "HireAI Candidate API",
+		"description": "API collection for candidate profile management",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Register User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"testuser\",\n    \"email\": \"test@example.com\",\n    \"password\": \"testpass123\",\n    \"first_name\": \"Test\",\n    \"last_name\": \"User\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/register/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "register", ""]
+						},
+						"description": "Register a new user"
+					}
+				},
+				{
+					"name": "Login User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"testuser\",\n    \"password\": \"testpass123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/login/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "login", ""]
+						},
+						"description": "Login and get authentication token"
+					}
+				},
+				{
+					"name": "Get User Profile",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/auth/profile/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "profile", ""]
+						},
+						"description": "Get authenticated user's profile"
+					}
+				},
+				{
+					"name": "Update User Profile",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"first_name\": \"Updated\",\n    \"last_name\": \"Name\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/profile/update/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "profile", "update", ""]
+						},
+						"description": "Update authenticated user's profile"
+					}
+				},
+				{
+					"name": "Change Password",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"old_password\": \"testpass123\",\n    \"new_password\": \"newpass123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/change-password/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "change-password", ""]
+						},
+						"description": "Change user password"
+					}
+				}
+			]
+		},
+		{
+			"name": "Candidate Profile",
+			"item": [
+				{
+					"name": "Get My Profile",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/candidates/me/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "candidates", "me", ""]
+						},
+						"description": "Get authenticated user's candidate profile"
+					}
+				},
+				{
+					"name": "Update My Profile",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"John Doe\",\n    \"email\": \"john@example.com\",\n    \"phone\": \"+1234567890\",\n    \"gender\": \"M\",\n    \"date_of_birth\": \"1990-01-01\",\n    \"linkedin_profile\": \"https://linkedin.com/in/johndoe\",\n    \"github_profile\": \"https://github.com/johndoe\",\n    \"portfolio_link\": \"https://johndoe.com\",\n    \"current_job_title\": \"Software Engineer\",\n    \"current_company\": \"Tech Corp\",\n    \"skills\": \"Python,Django,React\",\n    \"experience\": \"5 years\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/candidates/me/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "candidates", "me", ""]
+						},
+						"description": "Update authenticated user's candidate profile"
+					}
+				},
+				{
+					"name": "Upload Resume",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "resume",
+									"type": "file",
+									"src": "/path/to/resume.pdf"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/candidates/me/upload_resume/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "candidates", "me", "upload_resume", ""]
+						},
+						"description": "Upload resume file"
+					}
+				},
+				{
+					"name": "Get Portfolio Data",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/candidates/me/portfolio_data/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "candidates", "me", "portfolio_data", ""]
+						},
+						"description": "Get comprehensive portfolio data"
+					}
+				},
+				{
+					"name": "Get Dashboard Overview",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/candidates/me/dashboard_overview/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "candidates", "me", "dashboard_overview", ""]
+						},
+						"description": "Get dashboard overview data"
+					}
+				},
+				{
+					"name": "Create Initial Profile",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"John Doe\",\n    \"email\": \"john@example.com\",\n    \"phone\": \"+1234567890\",\n    \"gender\": \"M\",\n    \"date_of_birth\": \"1990-01-01\",\n    \"linkedin_profile\": \"https://linkedin.com/in/johndoe\",\n    \"github_profile\": \"https://github.com/johndoe\",\n    \"portfolio_link\": \"https://johndoe.com\",\n    \"current_job_title\": \"Software Engineer\",\n    \"current_company\": \"Tech Corp\",\n    \"skills\": \"Python,Django,React\",\n    \"experience\": \"5 years\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/candidates/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "candidates", ""]
+						},
+						"description": "Create initial candidate profile for authenticated user"
+					}
+				}
+			]
+		},
+		{
+			"name": "Education",
+			"item": [
+				{
+					"name": "List Education",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/education/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "education", ""]
+						},
+						"description": "List all education entries"
+					}
+				},
+				{
+					"name": "Create Education",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"institution\": \"University of Technology\",\n    \"degree\": \"Bachelor of Science\",\n    \"field_of_study\": \"Computer Science\",\n    \"start_date\": \"2016-09-01\",\n    \"end_date\": \"2020-06-30\",\n    \"description\": \"Focused on software engineering and artificial intelligence\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/education/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "education", ""]
+						},
+						"description": "Create new education entry"
+					}
+				},
+				{
+					"name": "Update Education",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"degree\": \"Master of Science\",\n    \"field_of_study\": \"Artificial Intelligence\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/education/{{education_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "education", "{{education_id}}", ""]
+						},
+						"description": "Update education entry"
+					}
+				},
+				{
+					"name": "Delete Education",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/education/{{education_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "education", "{{education_id}}", ""]
+						},
+						"description": "Delete education entry"
+					}
+				}
+			]
+		},
+		{
+			"name": "Work Experience",
+			"item": [
+				{
+					"name": "List Work Experience",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/work-experiences/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "work-experiences", ""]
+						},
+						"description": "List all work experience entries"
+					}
+				},
+				{
+					"name": "Create Work Experience",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"company\": \"Tech Solutions Inc.\",\n    \"position\": \"Senior Software Engineer\",\n    \"start_date\": \"2020-07-01\",\n    \"end_date\": null,\n    \"description\": \"Leading development of enterprise applications\",\n    \"is_current\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/work-experiences/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "work-experiences", ""]
+						},
+						"description": "Create new work experience entry"
+					}
+				},
+				{
+					"name": "Update Work Experience",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"position\": \"Lead Software Engineer\",\n    \"description\": \"Leading multiple development teams\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/work-experiences/{{work_experience_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "work-experiences", "{{work_experience_id}}", ""]
+						},
+						"description": "Update work experience entry"
+					}
+				},
+				{
+					"name": "Delete Work Experience",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/work-experiences/{{work_experience_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "work-experiences", "{{work_experience_id}}", ""]
+						},
+						"description": "Delete work experience entry"
+					}
+				}
+			]
+		},
+		{
+			"name": "Projects",
+			"item": [
+				{
+					"name": "List Projects",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/projects/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "projects", ""]
+						},
+						"description": "List all project entries"
+					}
+				},
+				{
+					"name": "Create Project",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"title\": \"E-commerce Platform\",\n    \"description\": \"Built a full-stack e-commerce platform\",\n    \"start_date\": \"2021-01-01\",\n    \"end_date\": \"2021-06-30\",\n    \"technologies\": \"Django,React,PostgreSQL\",\n    \"project_url\": \"https://github.com/username/ecommerce\",\n    \"is_current\": false\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/projects/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "projects", ""]
+						},
+						"description": "Create new project entry"
+					}
+				},
+				{
+					"name": "Update Project",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"title\": \"E-commerce Platform v2\",\n    \"technologies\": \"Django,React,PostgreSQL,Docker\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/projects/{{project_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "projects", "{{project_id}}", ""]
+						},
+						"description": "Update project entry"
+					}
+				},
+				{
+					"name": "Delete Project",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/projects/{{project_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "projects", "{{project_id}}", ""]
+						},
+						"description": "Delete project entry"
+					}
+				}
+			]
+		},
+		{
+			"name": "Certifications",
+			"item": [
+				{
+					"name": "List Certifications",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/certifications/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "certifications", ""]
+						},
+						"description": "List all certification entries"
+					}
+				},
+				{
+					"name": "Create Certification",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"AWS Certified Solutions Architect\",\n    \"issuing_organization\": \"Amazon Web Services\",\n    \"issue_date\": \"2022-01-15\",\n    \"expiry_date\": \"2025-01-15\",\n    \"credential_id\": \"AWS-123456\",\n    \"credential_url\": \"https://aws.amazon.com/certification/\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/certifications/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "certifications", ""]
+						},
+						"description": "Create new certification entry"
+					}
+				},
+				{
+					"name": "Update Certification",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"AWS Certified Solutions Architect - Professional\",\n    \"credential_id\": \"AWS-789012\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/certifications/{{certification_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "certifications", "{{certification_id}}", ""]
+						},
+						"description": "Update certification entry"
+					}
+				},
+				{
+					"name": "Delete Certification",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/certifications/{{certification_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "certifications", "{{certification_id}}", ""]
+						},
+						"description": "Delete certification entry"
+					}
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000",
+			"type": "string"
+		},
+		{
+			"key": "auth_token",
+			"value": "your_auth_token_here",
+			"type": "string"
+		},
+		{
+			"key": "education_id",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "work_experience_id",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "project_id",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "certification_id",
+			"value": "1",
+			"type": "string"
+		}
+	]
+} 
