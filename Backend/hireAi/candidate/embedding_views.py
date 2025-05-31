@@ -2,7 +2,7 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from .profile_embeddings import update_profile_embeddings, search_candidates
+# from .profile_embeddings import update_profile_embeddings, search_candidates
 from .models import Candidate
 
 @api_view(['POST'])
@@ -14,7 +14,7 @@ def update_embeddings(request):
     """
     try:
         candidate = Candidate.objects.get(user=request.user)
-        update_profile_embeddings(candidate.id)
+        # update_profile_embeddings(candidate.id)
         return Response({
             'message': 'Profile embeddings updated successfully'
         })

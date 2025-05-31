@@ -46,7 +46,7 @@ class CandidateSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'user', 'created_at', 'updated_at']
 
     def validate_gender(self, value):
-        if value and value not in ['MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_TO_SAY']:
+        if value and value not in ['male', 'female', 'other', 'prefer-not-to-say']:
             raise serializers.ValidationError("Invalid gender value")
         return value
 
