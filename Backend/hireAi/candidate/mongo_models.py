@@ -5,9 +5,9 @@ from datetime import datetime
 class CandidateMongo(Document):
     user_id = IntField(required=True)
     name = StringField(required=True)
-    email = EmailField()
+    email = EmailField(required=True)
     phone = StringField()
-    gender = StringField(choices=['M', 'F', 'O'])
+    gender = StringField(choices=['MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_TO_SAY'])
     date_of_birth = DateTimeField()
     
     # Social Links
@@ -15,34 +15,45 @@ class CandidateMongo(Document):
     github_profile = URLField()
     portfolio_link = URLField()
     
-    # Resume & Core Skills
-    resume = StringField()  # Store file path as string
-    skills = ListField(StringField())
-    experience = FloatField(default=0)
-    
-    # Current Employment
+    # Current Position
     current_job_title = StringField()
     current_company = StringField()
     
+    # Salary Information
+    current_salary = FloatField()
+    current_salary_currency = StringField(default='USD')
+    expected_salary = FloatField()
+    expected_salary_currency = StringField(default='USD')
+    notice_period = IntField()  # in days
+    salary_negotiable = BooleanField(default=True)
+    
+    # Skills and Experience
+    skills = ListField(StringField())
+    experience = FloatField()  # in years
+    
+    # Resume
+    resume = StringField()
+    
     # Job Preferences
     desired_roles = ListField(StringField())
-    preferred_industry_sector = ListField(StringField())
-    employment_type_preferences = ListField(StringField())
     preferred_locations = ListField(StringField())
-    desired_salary_range = StringField()
-    willingness_to_relocate = BooleanField(default=False)
-    is_actively_looking = BooleanField(default=True)
+    employment_type_preferences = ListField(StringField())
     
     # Internal Tracking
-    status = StringField(choices=['active', 'inactive', 'suspended'])
-    source = StringField()
-    view_count = IntField(default=0)
-    
-    # Timestamps
+    status = StringField(choices=['ACTIVE', 'INACTIVE', 'BLOCKED', 'DELETED'], default='ACTIVE')
     created_at = DateTimeField(default=datetime.now)
     updated_at = DateTimeField(default=datetime.now)
-
-    meta = {'collection': 'candidates'}
+    
+    meta = {
+        'collection': 'candidates',
+        'indexes': [
+            'user_id',
+            'email',
+            'status',
+            'skills',
+            'desired_roles'
+        ]
+    }
 
     @property
     def user(self):

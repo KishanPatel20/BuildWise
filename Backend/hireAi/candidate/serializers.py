@@ -1,37 +1,37 @@
 # my_app/serializers.py
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Candidate, Education, WorkExperience, Project, Certification
+from .models import Candidate, Project, WorkExperience, Education, Certification
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'first_name', 'last_name')
-        read_only_fields = ('id',)
-
-class EducationSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Education
-        fields = '__all__'
-        read_only_fields = ('id', 'candidate')
-
-class WorkExperienceSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = WorkExperience
-        fields = '__all__'
-        read_only_fields = ('id', 'candidate')
+        fields = ['id', 'username', 'email', 'first_name', 'last_name']
+        read_only_fields = ['id']
 
 class ProjectSerializer(serializers.ModelSerializer):
     class Meta:
         model = Project
         fields = '__all__'
-        read_only_fields = ('id', 'candidate')
+        read_only_fields = ['id', 'candidate']
+
+class WorkExperienceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WorkExperience
+        fields = '__all__'
+        read_only_fields = ['id', 'candidate']
+
+class EducationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Education
+        fields = '__all__'
+        read_only_fields = ['id', 'candidate']
 
 class CertificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Certification
         fields = '__all__'
-        read_only_fields = ('id', 'candidate')
+        read_only_fields = ['id', 'candidate']
 
 class CandidateSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
@@ -39,27 +39,24 @@ class CandidateSerializer(serializers.ModelSerializer):
     work_experiences = WorkExperienceSerializer(many=True, read_only=True)
     projects = ProjectSerializer(many=True, read_only=True)
     certifications = CertificationSerializer(many=True, read_only=True)
-    experience = serializers.IntegerField(required=False, allow_null=True)
-    resume = serializers.FileField(required=False, allow_null=True)
 
     class Meta:
         model = Candidate
-        fields = (
-            'id', 'user', 'name', 'email', 'phone', 'gender', 'date_of_birth',
-            'linkedin_profile', 'github_profile', 'portfolio_link',
-            'current_job_title', 'current_company', 'skills', 'experience',
-            'resume', 'view_count', 'education', 'work_experiences',
-            'projects', 'certifications'
-        )
-        read_only_fields = ('id', 'user', 'view_count')
+        fields = '__all__'
+        read_only_fields = ['id', 'user', 'created_at', 'updated_at']
 
     def validate_gender(self, value):
-        if value and value not in dict(Candidate.GENDER_CHOICES):
-            raise serializers.ValidationError("Invalid gender choice")
+        if value and value not in ['MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_TO_SAY']:
+            raise serializers.ValidationError("Invalid gender value")
+        return value
+
+    def validate_status(self, value):
+        if value not in ['ACTIVE', 'INACTIVE', 'BLOCKED', 'DELETED']:
+            raise serializers.ValidationError("Invalid status value")
         return value
 
     def validate_experience(self, value):
-        if value is not None and value < 0:
+        if value < 0:
             raise serializers.ValidationError("Experience cannot be negative")
         return value
 
