@@ -24,6 +24,7 @@ import CandidateSortOptions from '@/components/recruiter/CandidateSortOptions';
 import { RecruiterSearchFilters } from '@/types/recruiter';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { processSearchResultsWithGroq } from '@/services/groqService';
 
 interface SearchAPIResponse {
   results: Array<{
@@ -37,14 +38,18 @@ interface SearchAPIResponse {
       skills: number;
       experience: number;
       projects: number;
+      education: number;
       location: number;
+      additional: number;
     };
     aspect_queries: {
       profile: string;
       skills: string;
       experience: string;
       projects: string;
+      education: string;
       location: string;
+      additional: string;
     };
     user_token: string;
   }>;
@@ -55,7 +60,9 @@ interface SearchAPIResponse {
     skills: number;
     experience: number;
     projects: number;
+    education: number;
     location: number;
+    additional: number;
   };
 }
 
@@ -70,12 +77,55 @@ interface LastSearchResults {
   timestamp: Date;
 }
 
+interface Candidate {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  location: string;
+  title: string;
+  experience: string;
+  skills: string[];
+  education: string;
+  company: string;
+  matchScore: number;
+  avatar?: string;
+  summary: string;
+  status: 'new' | 'shortlisted' | 'screened' | 'interviewing' | 'offer' | 'hired' | 'rejected';
+  source: string;
+  appliedDate: string;
+  lastContact?: string;
+  availability: string;
+  seniorityLevel: string;
+  topMatchedSkills: string[];
+  skillGaps: string[];
+  projects: Array<{
+    name: string;
+    description: string;
+    technologies: string[];
+  }>;
+  aiInsight: string;
+  matchReasons: string[];
+  considerations: string[];
+}
+
+const SHORTLISTED_CANDIDATES_KEY = 'shortlistedCandidates';
+
+const getShortlistedCandidates = (): string[] => {
+  const stored = sessionStorage.getItem(SHORTLISTED_CANDIDATES_KEY);
+  return stored ? JSON.parse(stored) : [];
+};
+
+const saveShortlistedCandidates = (candidates: string[]) => {
+  sessionStorage.setItem(SHORTLISTED_CANDIDATES_KEY, JSON.stringify(candidates));
+};
+
 const RecruiterDashboard = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
   const [workflowsOpen, setWorkflowsOpen] = useState(true);
   const [filteredCandidates, setFilteredCandidates] = useState<any[]>([]);
-  const [shortlistedCandidates, setShortlistedCandidates] = useState<string[]>([]);
+  const [shortlistedCandidates, setShortlistedCandidates] = useState<string[]>(() => getShortlistedCandidates());
   const [selectedCandidates, setSelectedCandidates] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState('matchScore');
   const [isSearching, setIsSearching] = useState(false);
@@ -297,6 +347,27 @@ const RecruiterDashboard = () => {
     setSelectedFilters(Object.values(filters.role.jobTitle));
   };
 
+  const fetchCandidateDetails = async (userToken: string): Promise<Candidate | null> => {
+    try {
+      const response = await fetch('https://hireai-2ek4.onrender.com/api/candidates/me/', {
+        headers: {
+          'Authorization': 'Token f0dcc002bfb240dc12f1ca0ce8322dfe09a24750'
+        }
+      });
+
+      if (!response.ok) {
+        console.warn(`Failed to fetch details for candidate ${userToken}`);
+        return null;
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error fetching candidate details:', error);
+      return null;
+    }
+  };
+
   const handleSearch = async () => {
     try {
       setIsSearching(true);
@@ -417,10 +488,16 @@ const RecruiterDashboard = () => {
       updateSearchProgress('Searching candidates...', 50, 'Using AI to find matching candidates');
 
       // Make API call to embeddings search endpoint
-      const response = await fetch(`https://hireai-2ek4.onrender.com/api/embeddings/search/?${searchParams.toString()}`, {
+      const response = await fetch('https://hireai-2ek4.onrender.com/api/embeddings/search/', {
+        method: 'POST',
         headers: {
-          'Authorization': 'Token 9dc575e3c2e3ca4afbdb43db80069d6d164d898d'
-        }
+          'Authorization': 'Token f0dcc002bfb240dc12f1ca0ce8322dfe09a24750',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          q: combinedSearchString,
+          k: 5
+        })
       });
       
       if (!response.ok) {
@@ -430,73 +507,79 @@ const RecruiterDashboard = () => {
       const searchResults = await response.json() as SearchAPIResponse;
       console.log('Search Results:', searchResults);
 
-      // Process the search results
-      updateSearchProgress('Processing results...', 80, 'Analyzing candidate matches');
-      
-      // Map API results to candidate data structure
-      const processedCandidates = searchResults.results.map((result) => {
-        // Calculate match score as percentage (normalize total_similarity_score)
-        const normalizedScore = Math.min(result.total_similarity_score * 50, 100); // Scale score to 0-100
+      // Process search results through Groq for refined match scores
+      updateSearchProgress('Analyzing matches...', 70, 'Using AI to refine match scores');
+      const refinedScores = await processSearchResultsWithGroq(searchResults);
 
-        // Generate AI insight based on aspect scores
-        const topAspects = Object.entries(result.aspect_scores)
-          .sort(([, a], [, b]) => b - a)
-          .slice(0, 2)
-          .map(([aspect, score]) => `${aspect} (${(score * 100).toFixed(1)}%)`)
-          .join(', ');
+      // Process candidates with refined scores
+      const processedCandidates = await Promise.all(
+        searchResults.results.map(async (result, index) => {
+          const refinedScore = refinedScores[index];
+          const candidateDetails = await fetchCandidateDetails(result.user_token);
+          
+          // If we have detailed candidate information, use it with refined score
+          if (candidateDetails) {
+            return {
+              ...candidateDetails,
+              matchScore: refinedScore.matchScore,
+              aiInsight: refinedScore.reasoning,
+              matchReasons: refinedScore.topMatches,
+              considerations: refinedScore.considerations,
+              status: 'new' as const,
+              source: 'AI Search'
+            };
+          }
 
-        return {
-          id: result.user_token,
-          name: result.name,
-          role: result.current_role,
-          title: result.current_role,
-          experience: '3 years', // This should come from the API
-          location: 'Not specified', // This should come from the API
-          skills: [], // This should come from the API
-          topMatchedSkills: [], // This should come from the API
-          skillGaps: [], // This should come from the API
-          score: normalizedScore,
-          matchScore: normalizedScore,
-          avatar: '/placeholder.svg',
-          summary: `Strong match in ${topAspects}`,
-          aiInsight: `Strong candidate with ${topAspects} matching your requirements`,
-          email: result.email,
-          phone: '', // This should come from the API
-          status: 'new' as const,
-          company: result.company || 'Not specified',
-          education: '', // This should come from the API
-          source: 'AI Search',
-          appliedDate: new Date().toISOString().split('T')[0],
-          availability: 'Not specified', // This should come from the API
-          seniorityLevel: 'Not specified', // This should come from the API
-          lastContact: undefined,
-          matchReasons: [
-            `Strong match in ${topAspects}`,
-            `Total similarity score: ${(result.total_similarity_score * 100).toFixed(1)}%`
-          ],
-          considerations: [],
-          projects: []
-        };
-      });
+          // Fallback to basic information with refined score
+          return {
+            id: result.user_token,
+            name: result.name,
+            role: result.current_role,
+            title: result.current_role,
+            experience: 'Not specified',
+            location: 'Not specified',
+            skills: [],
+            topMatchedSkills: refinedScore.topMatches,
+            skillGaps: [],
+            score: refinedScore.matchScore,
+            matchScore: refinedScore.matchScore,
+            avatar: '/placeholder.svg',
+            summary: refinedScore.reasoning,
+            aiInsight: refinedScore.reasoning,
+            email: result.email,
+            phone: '',
+            status: 'new' as const,
+            company: result.company || 'Not specified',
+            education: '',
+            source: 'AI Search',
+            appliedDate: new Date().toISOString().split('T')[0],
+            availability: 'Not specified',
+            seniorityLevel: 'Not specified',
+            lastContact: undefined,
+            matchReasons: refinedScore.topMatches,
+            considerations: refinedScore.considerations,
+            projects: []
+          };
+        })
+      );
 
       setFilteredCandidates(processedCandidates);
 
-      // Store search results
+      // Store search results with refined scores
       setLastSearchResults({
         filters: searchFilters,
         processedFilters: {
-          confidence: Number(searchResults.weights.profile) + Number(searchResults.weights.skills),
-          reasoning: `Matched based on ${Object.entries(searchResults.weights)
-            .filter(([, weight]) => weight > 0)
-            .map(([aspect, weight]) => `${aspect} (${(Number(weight) * 100).toFixed(0)}%)`)
-            .join(', ')}`
+          confidence: refinedScores.reduce((acc, score) => acc + score.matchScore, 0) / refinedScores.length / 100,
+          reasoning: `Matched based on refined AI analysis with average score of ${
+            (refinedScores.reduce((acc, score) => acc + score.matchScore, 0) / refinedScores.length).toFixed(1)
+          }%`
         },
         timestamp: new Date()
       });
 
       updateSearchProgress('Search complete!', 100, `Found ${processedCandidates.length} matching candidates`);
       
-      // Show success message
+      // Show success message with refined scores
       toast.success(
         <div className="space-y-2">
           <p>Search completed successfully!</p>
@@ -504,10 +587,9 @@ const RecruiterDashboard = () => {
             Found {processedCandidates.length} matching candidates
           </p>
           <p className="text-xs text-gray-500">
-            Top matches based on: {Object.entries(searchResults.weights)
-              .filter(([, weight]) => weight > 0)
-              .map(([aspect, weight]) => `${aspect} (${(Number(weight) * 100).toFixed(0)}%)`)
-              .join(', ')}
+            Average match score: {
+              (refinedScores.reduce((acc, score) => acc + score.matchScore, 0) / refinedScores.length).toFixed(1)
+            }%
           </p>
         </div>
       );
@@ -530,11 +612,15 @@ const RecruiterDashboard = () => {
   };
 
   const toggleShortlist = (candidateId: string) => {
-    setShortlistedCandidates(prev => 
-      prev.includes(candidateId)
+    setShortlistedCandidates(prev => {
+      const newShortlisted = prev.includes(candidateId)
         ? prev.filter(id => id !== candidateId)
-        : [...prev, candidateId]
-    );
+        : [...prev, candidateId];
+      
+      // Save to session storage
+      saveShortlistedCandidates(newShortlisted);
+      return newShortlisted;
+    });
   };
 
   const handleCandidateSelect = (candidateId: string) => {
@@ -545,7 +631,7 @@ const RecruiterDashboard = () => {
     );
   };
 
-  const candidatesToShow = searchQuery || selectedFilters.length > 0 ? filteredCandidates : mockCandidates;
+  const candidatesToShow = (searchQuery || selectedFilters.length > 0) ? filteredCandidates : [];
 
   // Sorting logic
   const sortedCandidates = [...candidatesToShow].sort((a, b) => {
@@ -587,6 +673,14 @@ const RecruiterDashboard = () => {
     }
   });
 
+  const getShortlistedCandidatesData = () => {
+    return candidatesToShow.filter(candidate => 
+      shortlistedCandidates.includes(candidate.id)
+    );
+  };
+
+  const shortlistedCount = shortlistedCandidates.length;
+
   useEffect(() => {
     const recruiterUser = sessionStorage.getItem('recruiterUser');
     if (recruiterUser) {
@@ -594,6 +688,19 @@ const RecruiterDashboard = () => {
       setRecruiterName(`${userData.first_name} ${userData.last_name}`);
     }
   }, []);
+
+  useEffect(() => {
+    // Load shortlisted candidates from session storage on component mount
+    const storedShortlisted = getShortlistedCandidates();
+    setShortlistedCandidates(storedShortlisted);
+  }, []);
+
+  const handleSearchFocus = () => {
+    const searchInput = document.querySelector('input[placeholder*="job description"]') as HTMLInputElement;
+    if (searchInput) {
+      searchInput.focus();
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -636,6 +743,18 @@ const RecruiterDashboard = () => {
           </div>
         </div>
       </header>
+
+      {/* Add this near the top of your dashboard to show shortlisted count */}
+      <div className="bg-white border-b border-gray-200 px-6 py-2">
+        <div className="max-w-6xl mx-auto flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+              <Heart className="w-4 h-4 mr-1" />
+              {shortlistedCount} Shortlisted Candidates
+            </Badge>
+          </div>
+        </div>
+      </div>
 
       <div className="flex h-[calc(100vh-73px)]">
         {/* Enhanced Sidebar */}
@@ -764,10 +883,6 @@ const RecruiterDashboard = () => {
                   <Search className="w-4 h-4" />
                   <span>Search Candidates</span>
                 </TabsTrigger>
-                <TabsTrigger value="ai-ranking" className="flex items-center space-x-2">
-                  <Brain className="w-4 h-4" />
-                  <span>AI Ranking</span>
-                </TabsTrigger>
                 <TabsTrigger value="outreach" className="flex items-center space-x-2 relative">
                   <MessageSquare className="w-4 h-4" />
                   <span>Communications</span>
@@ -775,6 +890,11 @@ const RecruiterDashboard = () => {
                     2
                   </Badge>
                 </TabsTrigger>
+                <TabsTrigger value="ai-ranking" className="flex items-center space-x-2">
+                  <Brain className="w-4 h-4" />
+                  <span>AI Ranking</span>
+                </TabsTrigger>
+                
                 <TabsTrigger value="analytics" className="flex items-center space-x-2">
                   <BarChart3 className="w-4 h-4" />
                   <span>Analytics</span>
@@ -868,50 +988,75 @@ const RecruiterDashboard = () => {
               {/* Results Section */}
               <div className="flex-1 p-6 overflow-y-auto">
                 <div className="max-w-6xl mx-auto">
-                  <CandidateSortOptions
-                    sortBy={sortBy}
-                    onSortChange={setSortBy}
-                    candidateCount={sortedCandidates.length}
-                  />
-
-                  <div className="space-y-4">
-                    {sortedCandidates.map((candidate) => (
-                      <CandidateCard
-                        key={candidate.id}
-                        candidate={candidate}
-                        isSelected={selectedCandidates.includes(candidate.id)}
-                        onSelect={handleCandidateSelect}
-                        onShortlist={toggleShortlist}
-                        isShortlisted={shortlistedCandidates.includes(candidate.id)}
+                  {candidatesToShow.length > 0 ? (
+                    <>
+                      <CandidateSortOptions
+                        sortBy={sortBy}
+                        onSortChange={setSortBy}
+                        candidateCount={sortedCandidates.length}
                       />
-                    ))}
-                  </div>
 
-                  {/* Bulk Actions */}
-                  {selectedCandidates.length > 0 && (
-                    <Card className="bg-blue-50 border-blue-200 mt-6">
-                      <CardContent className="p-4">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium">
-                            {selectedCandidates.length} candidate(s) selected
-                          </span>
-                          <div className="flex space-x-2">
-                            <Button size="sm" variant="outline">
-                              Bulk Email
-                            </Button>
-                            <Button size="sm" variant="outline">
-                              Change Status
-                            </Button>
-                            <Button size="sm" variant="outline">
-                              Export
-                            </Button>
-                            <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
-                              AI Pre-Screen
-                            </Button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
+                      <div className="space-y-4">
+                        {sortedCandidates.map((candidate) => (
+                          <CandidateCard
+                            key={candidate.id}
+                            candidate={candidate}
+                            isSelected={selectedCandidates.includes(candidate.id)}
+                            onSelect={handleCandidateSelect}
+                            onShortlist={toggleShortlist}
+                            isShortlisted={shortlistedCandidates.includes(candidate.id)}
+                          />
+                        ))}
+                      </div>
+
+                      {/* Bulk Actions */}
+                      {selectedCandidates.length > 0 && (
+                        <Card className="bg-blue-50 border-blue-200 mt-6">
+                          <CardContent className="p-4">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium">
+                                {selectedCandidates.length} candidate(s) selected
+                              </span>
+                              <div className="flex space-x-2">
+                                <Button size="sm" variant="outline">
+                                  Bulk Email
+                                </Button>
+                                <Button size="sm" variant="outline">
+                                  Change Status
+                                </Button>
+                                <Button size="sm" variant="outline">
+                                  Export
+                                </Button>
+                                <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
+                                  AI Pre-Screen
+                                </Button>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )}
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mb-4">
+                        <Search className="w-8 h-8 text-blue-500" />
+                      </div>
+                      <h3 className="text-xl font-semibold text-gray-900 mb-2">Start Your Search</h3>
+                      <p className="text-gray-600 max-w-md mb-6">
+                        Enter a job description or use the filters above to find matching candidates. Our AI will help you discover the best talent for your role.
+                      </p>
+                      <div className="flex flex-wrap gap-2 justify-center">
+                        <Button 
+                          variant="outline" 
+                          className="flex items-center space-x-2"
+                          onClick={handleSearchFocus}
+                        >
+                          <Search className="w-4 h-4" />
+                          <span>Search Candidates</span>
+                        </Button>
+                        <ExtensiveFilters onFiltersApply={handleExtensiveFiltersApply} />
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>

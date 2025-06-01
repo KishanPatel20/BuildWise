@@ -210,7 +210,7 @@ Remember:
           { role: "system", content: prompt.system },
           { role: "user", content: prompt.user }
         ],
-        temperature: 0.2, // Lower temperature for more precise extraction
+        temperature: 0.9, // Lower temperature for more precise extraction
         max_tokens: 2000,
         response_format: prompt.response_format
       }),
@@ -287,5 +287,213 @@ Remember:
   } catch (error) {
     console.error('Error processing filters with Groq:', error);
     throw error;
+  }
+};
+
+interface SearchResult {
+  email: string;
+  name: string;
+  current_role: string;
+  company: string;
+  total_similarity_score: number;
+  aspect_scores: {
+    profile: number;
+    skills: number;
+    experience: number;
+    projects: number;
+    education: number;
+    location: number;
+    additional: number;
+  };
+  aspect_queries: {
+    profile: string;
+    skills: string;
+    experience: string;
+    projects: string;
+    education: string;
+    location: string;
+    additional: string;
+  };
+  user_token: string;
+}
+
+interface SearchResponse {
+  results: SearchResult[];
+  query: string;
+  count: number;
+  weights: {
+    profile: number;
+    skills: number;
+    experience: number;
+    projects: number;
+    education: number;
+    location: number;
+    additional: number;
+  };
+}
+
+interface RefinedMatchScore {
+  matchScore: number;
+  reasoning: string;
+  topMatches: string[];
+  considerations: string[];
+}
+
+export const processSearchResultsWithGroq = async (
+  searchResponse: SearchResponse
+): Promise<RefinedMatchScore[]> => {
+  try {
+    const prompt = {
+      system: `You are an AI recruitment assistant specialized in analyzing candidate matches.
+
+IMPORTANT INSTRUCTIONS:
+1. Analyze the candidate's aspect scores and queries
+2. Consider the weights provided for each aspect
+3. Provide a refined match score (50-100) based on:
+   - The quality of matches in each aspect
+   - The importance (weight) of each aspect
+   - The completeness of the candidate's profile
+4. IMPORTANT: All scores must be between 50 and 100
+   - Minimum score should be 50
+   - Maximum score should be 100
+   - Even for candidates with minimal matches, start at 50
+5. Provide clear reasoning for the score
+6. List top matching aspects
+7. List any important considerations
+
+RESPONSE FORMAT:
+Return a JSON object with this structure:
+{
+  "scores": [
+    {
+      "matchScore": number, // MUST be between 50-100
+      "reasoning": string,  // Clear explanation of the score
+      "topMatches": string[], // List of top matching aspects
+      "considerations": string[] // Important points to consider
+    }
+  ]
+}`,
+      user: `Search Results to Analyze:
+${JSON.stringify(searchResponse, null, 2)}
+
+Please analyze each candidate and provide:
+1. A refined match score (MUST be between 50-100)
+2. Clear reasoning for the score
+3. Top matching aspects
+4. Important considerations
+
+Remember:
+- ALL scores must be between 50 and 100
+- Start at 50 for minimal matches
+- Consider both scores and queries
+- Weight the aspects according to their importance
+- Be thorough in your analysis
+- Provide actionable insights
+- Return an array of scores, one for each candidate in the results`,
+      response_format: { type: "json_object" }
+    };
+
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${import.meta.env.VITE_GROQ_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: "llama-3.3-70b-versatile",
+        messages: [
+          { role: "system", content: prompt.system },
+          { role: "user", content: prompt.user }
+        ],
+        temperature: 0.2,
+        max_tokens: 2000,
+        response_format: prompt.response_format
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error('Groq API Error:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorData
+      });
+      throw new Error(`Groq API Error: ${response.status} - ${JSON.stringify(errorData)}`);
+    }
+
+    const data = await response.json();
+    const content = data.choices[0]?.message?.content;
+
+    if (!content) {
+      throw new Error('No content in Groq API response');
+    }
+
+    console.log('Raw Groq Response:', content);
+
+    let parsedContent;
+    try {
+      parsedContent = JSON.parse(content);
+    } catch (error) {
+      console.error('Failed to parse Groq response:', content);
+      throw new Error('Invalid JSON response from Groq API');
+    }
+
+    // Ensure we have the correct structure
+    if (!parsedContent.scores || !Array.isArray(parsedContent.scores)) {
+      console.error('Invalid response structure:', parsedContent);
+      // If we got a single score object instead of an array, wrap it
+      if (parsedContent.matchScore !== undefined) {
+        parsedContent = { scores: [parsedContent] };
+      } else {
+        throw new Error('Invalid response structure from Groq API');
+      }
+    }
+
+    const refinedScores = parsedContent.scores;
+
+    // Validate each score in the array and ensure minimum score of 50
+    refinedScores.forEach((score: any, index: number) => {
+      if (typeof score.matchScore !== 'number' || 
+          score.matchScore < 50 || 
+          score.matchScore > 100 ||
+          typeof score.reasoning !== 'string' ||
+          !Array.isArray(score.topMatches) ||
+          !Array.isArray(score.considerations)) {
+        console.error('Invalid score structure:', score);
+        // If score is below 50, adjust it to 50
+        if (typeof score.matchScore === 'number' && score.matchScore < 50) {
+          score.matchScore = 50;
+          score.reasoning = `${score.reasoning} (Score adjusted to minimum threshold)`;
+        } else {
+          throw new Error(`Invalid refined score structure for candidate ${index}`);
+        }
+      }
+    });
+
+    // Ensure we have the same number of scores as candidates
+    if (refinedScores.length !== searchResponse.results.length) {
+      console.warn(`Mismatch in number of scores (${refinedScores.length}) and candidates (${searchResponse.results.length})`);
+      // If we have fewer scores than candidates, pad with default scores
+      while (refinedScores.length < searchResponse.results.length) {
+        refinedScores.push({
+          matchScore: 50, // Changed from 0 to 50
+          reasoning: "Initial match score based on available data",
+          topMatches: ["Basic profile match"],
+          considerations: ["Candidate data needs further analysis"]
+        });
+      }
+    }
+
+    return refinedScores;
+
+  } catch (error) {
+    console.error('Error processing search results with Groq:', error);
+    // Return default scores in case of error, with minimum score of 50
+    return searchResponse.results.map(() => ({
+      matchScore: 50, // Changed from 0 to 50
+      reasoning: "Initial match score based on available data",
+      topMatches: ["Basic profile match"],
+      considerations: ["Unable to process detailed match at this time"]
+    }));
   }
 }; 
