@@ -383,11 +383,7 @@ const CandidateDashboard = () => {
                                 <p className="text-sm text-gray-500">
                                   {section.completed ? 'Completed' : 'Incomplete'}
                                 </p>
-                                {section.apiEndpoint && (
-                                  <p className="text-xs text-gray-400 mt-1">
-                                    API: {section.apiEndpoint}
-                                  </p>
-                                )}
+                                
                               </div>
                             </div>
                             <div className={`w-6 h-6 rounded-full ${

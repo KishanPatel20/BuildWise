@@ -688,7 +688,7 @@ const RecruiterDashboard = () => {
               </TabsList>
             </div>
 
-            <TabsContent value="search" className="flex-1 flex flex-col">
+            <TabsContent value="search" className="flex-1 flex flex-col data-[state=inactive]:hidden">
               {/* Enhanced Search Section */}
               <div className="p-6 bg-white border-b">
                 <div className="max-w-4xl mx-auto">
