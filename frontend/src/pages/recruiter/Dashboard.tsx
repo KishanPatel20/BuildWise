@@ -109,14 +109,21 @@ interface Candidate {
   considerations: string[];
 }
 
-const SHORTLISTED_CANDIDATES_KEY = 'shortlistedCandidates';
+interface ShortlistedCandidate {
+  user_token: string;
+  name: string;
+  role: string;
+  matchScore: number;
+}
 
-const getShortlistedCandidates = (): string[] => {
+const SHORTLISTED_CANDIDATES_KEY = 'shortlisted_candidates';
+
+const getShortlistedCandidates = (): ShortlistedCandidate[] => {
   const stored = sessionStorage.getItem(SHORTLISTED_CANDIDATES_KEY);
   return stored ? JSON.parse(stored) : [];
 };
 
-const saveShortlistedCandidates = (candidates: string[]) => {
+const saveShortlistedCandidates = (candidates: ShortlistedCandidate[]) => {
   sessionStorage.setItem(SHORTLISTED_CANDIDATES_KEY, JSON.stringify(candidates));
 };
 
@@ -125,7 +132,7 @@ const RecruiterDashboard = () => {
   const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
   const [workflowsOpen, setWorkflowsOpen] = useState(true);
   const [filteredCandidates, setFilteredCandidates] = useState<any[]>([]);
-  const [shortlistedCandidates, setShortlistedCandidates] = useState<string[]>(() => getShortlistedCandidates());
+  const [shortlistedCandidates, setShortlistedCandidates] = useState<ShortlistedCandidate[]>(() => getShortlistedCandidates());
   const [selectedCandidates, setSelectedCandidates] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState('matchScore');
   const [isSearching, setIsSearching] = useState(false);
@@ -613,9 +620,24 @@ const RecruiterDashboard = () => {
 
   const toggleShortlist = (candidateId: string) => {
     setShortlistedCandidates(prev => {
-      const newShortlisted = prev.includes(candidateId)
-        ? prev.filter(id => id !== candidateId)
-        : [...prev, candidateId];
+      const candidate = filteredCandidates.find(c => c.id === candidateId);
+      if (!candidate) return prev;
+
+      const isCurrentlyShortlisted = prev.some(c => c.user_token === candidateId);
+      let newShortlisted: ShortlistedCandidate[];
+
+      if (isCurrentlyShortlisted) {
+        // Remove from shortlist
+        newShortlisted = prev.filter(c => c.user_token !== candidateId);
+      } else {
+        // Add to shortlist with full details
+        newShortlisted = [...prev, {
+          user_token: candidateId,
+          name: candidate.name,
+          role: candidate.title,
+          matchScore: candidate.matchScore
+        }];
+      }
       
       // Save to session storage
       saveShortlistedCandidates(newShortlisted);
@@ -675,7 +697,7 @@ const RecruiterDashboard = () => {
 
   const getShortlistedCandidatesData = () => {
     return candidatesToShow.filter(candidate => 
-      shortlistedCandidates.includes(candidate.id)
+      shortlistedCandidates.some(c => c.user_token === candidate.id)
     );
   };
 
@@ -1004,7 +1026,7 @@ const RecruiterDashboard = () => {
                             isSelected={selectedCandidates.includes(candidate.id)}
                             onSelect={handleCandidateSelect}
                             onShortlist={toggleShortlist}
-                            isShortlisted={shortlistedCandidates.includes(candidate.id)}
+                            isShortlisted={shortlistedCandidates.some(c => c.user_token === candidate.id)}
                           />
                         ))}
                       </div>

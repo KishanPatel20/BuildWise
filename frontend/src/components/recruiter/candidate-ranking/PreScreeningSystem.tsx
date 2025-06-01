@@ -1,5 +1,4 @@
-
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -7,8 +6,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Brain, MessageSquare, CheckCircle, AlertTriangle, Clock, Users, Zap } from 'lucide-react';
 
+const SHORTLISTED_CANDIDATES_KEY = 'shortlisted_candidates';
+
 const PreScreeningSystem = () => {
-  const [selectedCandidate, setSelectedCandidate] = useState('sarah-chen');
+  const [selectedCandidate, setSelectedCandidate] = useState('');
+  const [shortlistedCandidates, setShortlistedCandidates] = useState([]);
   const [generatedQuestions, setGeneratedQuestions] = useState([
     {
       id: '1',
@@ -58,6 +60,14 @@ const PreScreeningSystem = () => {
     }
   ]);
 
+  useEffect(() => {
+    const stored = sessionStorage.getItem(SHORTLISTED_CANDIDATES_KEY);
+    if (stored) {
+      const candidates = JSON.parse(stored);
+      setShortlistedCandidates(candidates);
+    }
+  }, []);
+
   const generateQuestions = () => {
     console.log(`Generating AI questions for candidate: ${selectedCandidate}`);
     // Simulate AI question generation
@@ -84,9 +94,14 @@ const PreScreeningSystem = () => {
                   <SelectValue placeholder="Select candidate" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="sarah-chen">Sarah Chen - Senior Frontend Developer</SelectItem>
-                  <SelectItem value="michael-rodriguez">Michael Rodriguez - Full Stack Engineer</SelectItem>
-                  <SelectItem value="emily-johnson">Emily Johnson - Frontend Developer</SelectItem>
+                  {shortlistedCandidates.map((candidate) => (
+                    <SelectItem 
+                      key={candidate.user_token} 
+                      value={candidate.user_token}
+                    >
+                      {candidate.name} - {candidate.role} ({candidate.matchScore}% Match)
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <Button onClick={generateQuestions}>
