@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,16 +6,41 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Mail, Lock } from 'lucide-react';
+import axios from 'axios';
+import { toast } from 'sonner';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 const Login = () => {
   const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(false);
   const [candidateForm, setCandidateForm] = useState({ email: '', password: '' });
   const [recruiterForm, setRecruiterForm] = useState({ email: '', password: '' });
 
-  const handleCandidateLogin = (e: React.FormEvent) => {
+  const handleCandidateLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Mock login - redirect to candidate dashboard
-    navigate('/candidate/dashboard');
+    try {
+      setIsLoading(true);
+      const response = await axios.post(`${API_BASE_URL}/api/login/`, {
+        username: candidateForm.email,
+        password: candidateForm.password
+      });
+
+      if (response.data.token) {
+        // Store token in sessionStorage
+        sessionStorage.setItem('token', response.data.token);
+        // Store user data if needed
+        sessionStorage.setItem('user', JSON.stringify(response.data.user));
+        
+        toast.success('Login successful!');
+        navigate('/candidate/dashboard');
+      }
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || 'Login failed. Please try again.';
+      toast.error(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleRecruiterLogin = (e: React.FormEvent) => {
@@ -98,8 +122,13 @@ const Login = () => {
                       />
                     </div>
                   </div>
-                  <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" size="lg">
-                    Sign In as Candidate
+                  <Button 
+                    type="submit" 
+                    className="w-full bg-blue-600 hover:bg-blue-700" 
+                    size="lg"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? 'Signing in...' : 'Sign In as Candidate'}
                   </Button>
                   <p className="text-center text-sm text-gray-600">
                     Don't have an account?{' '}

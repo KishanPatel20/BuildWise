@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,24 +5,52 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Mail, Lock, User } from 'lucide-react';
+import axios from 'axios';
+import { toast } from 'sonner';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 const CandidateSignup = () => {
   const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(false);
   const [form, setForm] = useState({
-    name: '',
+    firstName: '',
+    lastName: '',
     email: '',
     password: '',
     confirmPassword: ''
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (form.password !== form.confirmPassword) {
-      alert('Passwords do not match');
+      toast.error('Passwords do not match');
       return;
     }
-    // Mock signup - redirect to profile setup
-    navigate('/candidate/profile-setup');
+
+    try {
+      setIsLoading(true);
+      const response = await axios.post(`${API_BASE_URL}/api/register/`, {
+        username: form.email,
+        email: form.email,
+        password: form.password,
+        password2: form.confirmPassword,
+        first_name: form.firstName,
+        last_name: form.lastName
+      });
+
+      if (response.data.token) {
+        // Store the token in localStorage
+        localStorage.setItem('token', response.data.token);
+        toast.success('Registration successful! Please login to continue.');
+        navigate('/login');
+      }
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || 'Registration failed. Please try again.';
+      toast.error(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -62,16 +89,32 @@ const CandidateSignup = () => {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
+                <Label htmlFor="firstName">First Name</Label>
                 <div className="relative">
                   <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                   <Input
-                    id="name"
+                    id="firstName"
                     type="text"
-                    placeholder="Enter your full name"
+                    placeholder="Enter your first name"
                     className="pl-10"
-                    value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    value={form.firstName}
+                    onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="lastName">Last Name</Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="lastName"
+                    type="text"
+                    placeholder="Enter your last name"
+                    className="pl-10"
+                    value={form.lastName}
+                    onChange={(e) => setForm({ ...form, lastName: e.target.value })}
                     required
                   />
                 </div>
@@ -125,8 +168,13 @@ const CandidateSignup = () => {
                 </div>
               </div>
               
-              <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" size="lg">
-                Create Candidate Account
+              <Button 
+                type="submit" 
+                className="w-full bg-blue-600 hover:bg-blue-700" 
+                size="lg"
+                disabled={isLoading}
+              >
+                {isLoading ? 'Creating Account...' : 'Create Candidate Account'}
               </Button>
               
               <p className="text-center text-sm text-gray-600">
