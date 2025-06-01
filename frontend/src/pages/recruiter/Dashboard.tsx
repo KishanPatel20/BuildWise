@@ -495,10 +495,15 @@ const RecruiterDashboard = () => {
       updateSearchProgress('Searching candidates...', 50, 'Using AI to find matching candidates');
 
       // Make API call to embeddings search endpoint
+      const recruiterToken = sessionStorage.getItem('recruiterToken');
+      if (!recruiterToken) {
+        throw new Error('No authorization token found. Please login again.');
+      }
+
       const response = await fetch('https://hireai-2ek4.onrender.com/api/embeddings/search/', {
         method: 'POST',
         headers: {
-          'Authorization': 'Token f0dcc002bfb240dc12f1ca0ce8322dfe09a24750',
+          'Authorization': `Token ${recruiterToken}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
