@@ -17,6 +17,27 @@ const Login = () => {
   const [candidateForm, setCandidateForm] = useState({ email: '', password: '' });
   const [recruiterForm, setRecruiterForm] = useState({ email: '', password: '' });
 
+  const checkCandidateProfile = async (token: string) => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/candidates/me/`, {
+        headers: {
+          'Authorization': `Token ${token}`
+        }
+      });
+      
+      // If we get a valid response with data, redirect to dashboard
+      if (response.data && response.data.id) {
+        navigate('/candidate/dashboard');
+      } else {
+        // If no profile data, redirect to profile setup
+        navigate('/candidate/profile-setup');
+      }
+    } catch (error) {
+      // If any error or empty response, redirect to profile setup
+      navigate('/candidate/profile-setup');
+    }
+  };
+
   const handleCandidateLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -33,7 +54,8 @@ const Login = () => {
         sessionStorage.setItem('user', JSON.stringify(response.data.user));
         
         toast.success('Login successful!');
-        navigate('/candidate/dashboard');
+        // Check candidate profile and redirect accordingly
+        await checkCandidateProfile(response.data.token);
       }
     } catch (error: any) {
       const errorMessage = error.response?.data?.message || 'Login failed. Please try again.';

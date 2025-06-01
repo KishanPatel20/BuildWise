@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Progress } from '@/components/ui/progress';
-import { Search, Upload, MessageSquare, Star, MapPin, Calendar, Briefcase, BarChart3, Brain, Menu, Settings, LogOut, ChevronDown, Plus, X, Users, Target, Clock, Heart, Phone, Mail, UserCheck, ChevronUp, Bell, HelpCircle, Sparkles, Grip } from 'lucide-react';
+import { Search, Upload, MessageSquare, Star, MapPin, Calendar, Briefcase, BarChart3, Brain, Menu, Settings, LogOut, ChevronDown, Plus, X, Users, Target, Clock, Heart, Phone, Mail, UserCheck, ChevronUp, Bell, HelpCircle, Sparkles, Grip, Loader2 } from 'lucide-react';
 import AnalyticsDashboard from '@/components/recruiter/AnalyticsDashboard';
 import PreScreeningSystem from '@/components/recruiter/candidate-ranking/PreScreeningSystem';
 import PersonalizedOutreach from '@/components/recruiter/candidate-ranking/PersonalizedOutreach';
@@ -21,6 +21,10 @@ import ExtensiveFilters from '@/components/recruiter/ExtensiveFilters';
 import AIPoweredRanking from '@/components/recruiter/AIPoweredRanking';
 import CandidateCard from '@/components/recruiter/CandidateCard';
 import CandidateSortOptions from '@/components/recruiter/CandidateSortOptions';
+import { processFiltersWithGroq } from '@/services/groqService';
+import { RecruiterSearchFilters, GroqProcessedFilters } from '@/types/recruiter';
+import { toast } from 'sonner';
+import { format } from 'date-fns';
 
 const RecruiterDashboard = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -31,6 +35,17 @@ const RecruiterDashboard = () => {
   const [selectedCandidates, setSelectedCandidates] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState('matchScore');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchProgress, setSearchProgress] = useState({
+    step: '',
+    progress: 0,
+    details: ''
+  });
+  const [lastSearchResults, setLastSearchResults] = useState<{
+    filters: RecruiterSearchFilters;
+    processedFilters: GroqProcessedFilters;
+    timestamp: Date;
+  } | null>(null);
 
   const [workflows] = useState([
     { id: '1', name: 'Frontend Developer Hiring', stage: 'Screening', candidates: 12, activeCount: 3, totalCount: 12, progress: 25 },
@@ -232,31 +247,188 @@ const RecruiterDashboard = () => {
 
   const quickFilters = getContextualFilters();
 
-  const handleSearch = () => {
-    console.log('Searching for:', searchQuery);
-    
-    let results = mockCandidates;
-    
-    if (searchQuery.trim()) {
-      results = mockCandidates.filter(candidate => 
-        candidate.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        candidate.role.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        candidate.skills.some(skill => skill.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        candidate.location.toLowerCase().includes(searchQuery.toLowerCase())
-      );
+  const updateSearchProgress = (step: string, progress: number, details: string = '') => {
+    setSearchProgress({ step, progress, details });
+  };
+
+  const handleExtensiveFiltersApply = (filters: RecruiterSearchFilters) => {
+    console.log('Extensive filters applied:', filters);
+    // Store the filters for use in search
+    setSelectedFilters(Object.values(filters.role.jobTitle));
+  };
+
+  const handleSearch = async () => {
+    try {
+      setIsSearching(true);
+      updateSearchProgress('Initializing search...', 10);
+
+      // Prepare search filters based only on what user has explicitly selected
+      const searchFilters: RecruiterSearchFilters = {
+        location: {
+          country: '',
+          state: '',
+          city: '',
+          remote: false,
+          hybrid: false,
+          onsite: false,
+          willingToRelocate: false
+        },
+        experience: {
+          overallExperience: { min: 0, max: 0 },
+          domainExperience: { min: 0, max: 0 },
+          currentRoleExperience: { min: 0, max: 0 },
+          averageTenure: { min: 0, max: 0 }
+        },
+        technicalSkills: {
+          programmingLanguages: selectedFilters.filter(f => 
+            ['Python', 'JavaScript', 'TypeScript', 'Java', 'C++'].includes(f)
+          ),
+          frameworks: selectedFilters.filter(f => 
+            ['React', 'Angular', 'Vue', 'Node.js', 'Django'].includes(f)
+          ),
+          databases: [],
+          cloudPlatforms: [],
+          devOpsTools: [],
+          aiMlTools: [],
+          otherTechnologies: []
+        },
+        domain: {
+          primaryDomain: [],
+          subDomains: [],
+          industryExperience: [],
+          preferredIndustries: []
+        },
+        company: {
+          currentCompany: {
+            type: [],
+            size: { min: 0, max: 0 }
+          },
+          pastCompanies: {
+            minExperience: 0,
+            preferredCompanies: [],
+            excludeCompanies: []
+          }
+        },
+        education: {
+          degree: [],
+          fieldOfStudy: [],
+          minimumEducation: '',
+          certifications: [],
+          preferredInstitutions: []
+        },
+        role: {
+          jobTitle: selectedFilters.filter(f => 
+            ['Frontend', 'Backend', 'Full Stack', 'Senior'].includes(f)
+          ),
+          seniorityLevel: [],
+          roleType: [],
+          department: [],
+          reportingTo: [],
+          teamSize: { min: 0, max: 0 }
+        },
+        compensation: {
+          salary: { min: 0, max: 0, currency: 'USD' },
+          equity: false,
+          bonus: { min: 0, max: 0 },
+          benefits: []
+        },
+        availability: {
+          noticePeriod: { min: 0, max: 0 },
+          startDate: '',
+          availability: '',
+          timezone: []
+        },
+        softSkills: {
+          communication: [],
+          leadership: [],
+          problemSolving: [],
+          teamwork: [],
+          otherSkills: []
+        },
+        projects: {
+          projectTypes: [],
+          projectScale: [],
+          teamSize: { min: 0, max: 0 },
+          technologies: []
+        },
+        preferences: {
+          matchScore: { min: 0, max: 0 },
+          excludeContacted: false,
+          excludeRejected: false,
+          excludeShortlisted: false,
+          activeInLastDays: 0
+        },
+        jobDescription: searchQuery
+      };
+
+      // Only process with Groq API if there's a search query or selected filters
+      if (searchQuery.trim() || selectedFilters.length > 0) {
+        updateSearchProgress('Analyzing search criteria...', 50, 'Using AI to find matching candidates');
+        const processedFilters = await processFiltersWithGroq(searchFilters, searchQuery);
+        console.log('Processed Filters:', processedFilters);
+
+        // Store search results
+        setLastSearchResults({
+          filters: searchFilters,
+          processedFilters,
+          timestamp: new Date()
+        });
+      }
+
+      // Apply filters to candidates
+      updateSearchProgress('Finding matching candidates...', 80, 'Applying search criteria');
+      let results = mockCandidates;
+      
+      // Apply basic search query if present
+      if (searchQuery.trim()) {
+        results = mockCandidates.filter(candidate => 
+          candidate.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          candidate.role.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          candidate.skills.some(skill => skill.toLowerCase().includes(searchQuery.toLowerCase())) ||
+          candidate.location.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+      }
+
+      // Apply selected filters only if any are selected
+      if (selectedFilters.length > 0) {
+        results = results.filter(candidate => 
+          selectedFilters.some(filter => 
+            candidate.skills.some(skill => skill.toLowerCase().includes(filter.toLowerCase())) ||
+            candidate.role.toLowerCase().includes(filter.toLowerCase()) ||
+            candidate.status.toLowerCase().includes(filter.toLowerCase())
+          )
+        );
+      }
+
+      setFilteredCandidates(results);
+      updateSearchProgress('Search complete!', 100, `Found ${results.length} matching candidates`);
+      
+      // Show success message with AI insights only if we processed filters
+      if (searchQuery.trim() || selectedFilters.length > 0) {
+        toast.success(
+          <div className="space-y-2">
+            <p>Search completed successfully!</p>
+            {lastSearchResults?.processedFilters && (
+              <>
+                <p className="text-sm text-gray-600">
+                  AI Confidence: {(lastSearchResults.processedFilters.confidence * 100).toFixed(1)}%
+                </p>
+                <p className="text-sm text-gray-600">
+                  {lastSearchResults.processedFilters.reasoning}
+                </p>
+              </>
+            )}
+          </div>
+        );
+      }
+
+    } catch (error) {
+      console.error('Search error:', error);
+      toast.error('Failed to process search. Please try again.');
+      updateSearchProgress('Search failed', 0, error instanceof Error ? error.message : 'Unknown error occurred');
+    } finally {
+      setIsSearching(false);
     }
-    
-    if (selectedFilters.length > 0) {
-      results = results.filter(candidate => 
-        selectedFilters.some(filter => 
-          candidate.skills.some(skill => skill.toLowerCase().includes(filter.toLowerCase())) ||
-          candidate.role.toLowerCase().includes(filter.toLowerCase()) ||
-          candidate.status.toLowerCase().includes(filter.toLowerCase())
-        )
-      );
-    }
-    
-    setFilteredCandidates(results);
   };
 
   const toggleFilter = (filterName: string) => {
@@ -324,11 +496,6 @@ const RecruiterDashboard = () => {
         return b.matchScore - a.matchScore;
     }
   });
-
-  const handleExtensiveFiltersApply = (filters: any) => {
-    console.log('Extensive filters applied:', filters);
-    // Apply extensive filtering logic here
-  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -531,30 +698,31 @@ const RecruiterDashboard = () => {
                     <div className="flex-1 relative">
                       <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                       <Input
-                        placeholder="Try: 'React developer with 3+ years experience in fintech'"
+                        placeholder="Enter job description or search terms..."
                         className="pl-10 h-12 text-base"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
                       />
-                      {/* Search History Indicator */}
-                      {searchQuery && (
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="absolute right-12 top-2 h-8 w-8 p-0"
-                        >
-                          <Clock className="w-4 h-4 text-gray-400" />
-                        </Button>
-                      )}
                     </div>
                     <ExtensiveFilters onFiltersApply={handleExtensiveFiltersApply} />
                     <Button variant="outline" className="h-12 px-6">
                       <Upload className="w-4 h-4 mr-2" />
                       Upload JD
                     </Button>
-                    <Button onClick={handleSearch} className="h-12 px-8 bg-blue-600 hover:bg-blue-700">
-                      Search
+                    <Button 
+                      onClick={handleSearch} 
+                      className="h-12 px-8 bg-blue-600 hover:bg-blue-700"
+                      disabled={isSearching}
+                    >
+                      {isSearching ? (
+                        <div className="flex items-center space-x-2">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Searching...</span>
+                        </div>
+                      ) : (
+                        'Search'
+                      )}
                     </Button>
                   </div>
 
@@ -716,6 +884,42 @@ const RecruiterDashboard = () => {
           </Tabs>
         </div>
       </div>
+
+      {/* Add Search Progress Indicator */}
+      {isSearching && (
+        <div className="fixed bottom-4 right-4 bg-white rounded-lg shadow-lg p-4 w-80">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">{searchProgress.step}</span>
+              <span className="text-sm text-gray-500">{searchProgress.progress}%</span>
+            </div>
+            <Progress value={searchProgress.progress} className="h-2" />
+            {searchProgress.details && (
+              <p className="text-xs text-gray-500 mt-1">{searchProgress.details}</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Add Last Search Results Summary */}
+      {lastSearchResults && !isSearching && (
+        <div className="fixed bottom-4 right-4 bg-white rounded-lg shadow-lg p-4 w-80">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">Last Search Results</span>
+              <span className="text-xs text-gray-500">
+                {format(lastSearchResults.timestamp, 'MMM d, HH:mm:ss')}
+              </span>
+            </div>
+            <div className="text-sm space-y-1">
+              <p>AI Confidence: {(lastSearchResults.processedFilters.confidence * 100).toFixed(1)}%</p>
+              <p className="text-xs text-gray-500 truncate">
+                {lastSearchResults.processedFilters.reasoning}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
