@@ -19,6 +19,7 @@ interface Education {
   fieldOfStudy: string;
   startDate: string;
   endDate: string;
+  isCurrentlyStudying: boolean;
   grade: string;
   description?: string;
 }
@@ -50,7 +51,8 @@ const Education = () => {
         degree: edu.degree,
         fieldOfStudy: edu.field_of_study || '',
         startDate: edu.start_date,
-        endDate: edu.end_date,
+        endDate: edu.end_date || '',
+        isCurrentlyStudying: !edu.end_date,
         grade: edu.gpa || '',
         description: edu.activities_achievements || ''
       }));
@@ -64,6 +66,7 @@ const Education = () => {
           fieldOfStudy: '',
           startDate: '',
           endDate: '',
+          isCurrentlyStudying: false,
           grade: '',
           description: ''
         }]);
@@ -93,6 +96,7 @@ const Education = () => {
       fieldOfStudy: '',
       startDate: '',
       endDate: '',
+      isCurrentlyStudying: false,
       grade: '',
       description: ''
     };
@@ -129,7 +133,7 @@ const Education = () => {
     }
   };
 
-  const updateEducation = (id: string, field: keyof Education, value: string) => {
+  const updateEducation = (id: string, field: keyof Education, value: string | boolean) => {
     setEducations(educations.map(edu => 
       edu.id === id ? { ...edu, [field]: value } : edu
     ));
@@ -154,7 +158,7 @@ const Education = () => {
           degree: education.degree,
           field_of_study: education.fieldOfStudy,
           start_date: education.startDate,
-          end_date: education.endDate,
+          end_date: education.isCurrentlyStudying ? null : education.endDate || null,
           gpa: education.grade || null,
           activities_achievements: education.description || null
         };
@@ -308,13 +312,15 @@ const Education = () => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor={`endDate-${education.id}`}>End Date *</Label>
+                    <Label htmlFor={`endDate-${education.id}`}>
+                      End Date {education.isCurrentlyStudying ? '(Currently Studying)' : ''}
+                    </Label>
                     <Input
                       id={`endDate-${education.id}`}
                       type="date"
                       value={education.endDate}
                       onChange={(e) => updateEducation(education.id, 'endDate', e.target.value)}
-                      required
+                      disabled={education.isCurrentlyStudying}
                     />
                   </div>
                   <div className="space-y-2">
@@ -326,6 +332,22 @@ const Education = () => {
                       onChange={(e) => updateEducation(education.id, 'grade', e.target.value)}
                     />
                   </div>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id={`currentlyStudying-${education.id}`}
+                    checked={education.isCurrentlyStudying}
+                    onChange={(e) => {
+                      updateEducation(education.id, 'isCurrentlyStudying', e.target.checked);
+                      if (e.target.checked) {
+                        updateEducation(education.id, 'endDate', '');
+                      }
+                    }}
+                    className="rounded"
+                  />
+                  <Label htmlFor={`currentlyStudying-${education.id}`}>I am currently studying here</Label>
                 </div>
 
                 <div className="space-y-2">

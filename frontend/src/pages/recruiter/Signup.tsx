@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,25 +5,56 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Mail, Lock, User, Building } from 'lucide-react';
+import axios from 'axios';
+import { toast } from 'sonner';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 const RecruiterSignup = () => {
   const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(false);
   const [form, setForm] = useState({
-    name: '',
     email: '',
-    company: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    firstName: '',
+    lastName: '',
+    companyName: ''
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     if (form.password !== form.confirmPassword) {
-      alert('Passwords do not match');
+      toast.error('Passwords do not match');
       return;
     }
-    // Mock signup - redirect to recruiter dashboard
-    navigate('/recruiter/dashboard');
+
+    setIsLoading(true);
+    try {
+      const response = await axios.post(`${API_BASE_URL}/recruiter/register/`, {
+        username: form.email,
+        email: form.email,
+        password: form.password,
+        first_name: form.firstName,
+        last_name: form.lastName,
+        company_name: form.companyName
+      });
+
+      if (response.status === 201) {
+        toast.success('Account created successfully! Please login to continue.');
+        navigate('/login');
+      }
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Registration failed';
+        toast.error(errorMessage);
+      } else {
+        toast.error('An unexpected error occurred');
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -62,19 +92,37 @@ const RecruiterSignup = () => {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
-                <div className="relative">
-                  <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                  <Input
-                    id="name"
-                    type="text"
-                    placeholder="Enter your full name"
-                    className="pl-10"
-                    value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    required
-                  />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="firstName">First Name</Label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="firstName"
+                      type="text"
+                      placeholder="First name"
+                      className="pl-10"
+                      value={form.firstName}
+                      onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+                      required
+                    />
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="lastName">Last Name</Label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="lastName"
+                      type="text"
+                      placeholder="Last name"
+                      className="pl-10"
+                      value={form.lastName}
+                      onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+                      required
+                    />
+                  </div>
                 </div>
               </div>
               
@@ -95,16 +143,16 @@ const RecruiterSignup = () => {
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="company">Company</Label>
+                <Label htmlFor="companyName">Company</Label>
                 <div className="relative">
                   <Building className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                   <Input
-                    id="company"
+                    id="companyName"
                     type="text"
                     placeholder="Enter your company name"
                     className="pl-10"
-                    value={form.company}
-                    onChange={(e) => setForm({ ...form, company: e.target.value })}
+                    value={form.companyName}
+                    onChange={(e) => setForm({ ...form, companyName: e.target.value })}
                     required
                   />
                 </div>
@@ -142,15 +190,20 @@ const RecruiterSignup = () => {
                 </div>
               </div>
               
-              <Button type="submit" className="w-full bg-green-600 hover:bg-green-700" size="lg">
-                Create Recruiter Account
+              <Button 
+                type="submit" 
+                className="w-full bg-green-600 hover:bg-green-700" 
+                size="lg"
+                disabled={isLoading}
+              >
+                {isLoading ? 'Creating Account...' : 'Create Recruiter Account'}
               </Button>
               
               <p className="text-center text-sm text-gray-600">
                 Already have an account?{' '}
                 <Button
                   variant="link"
-                  onClick={() => navigate('/login')}
+                  onClick={() => navigate('/recruiter/login')}
                   className="p-0 text-green-600"
                 >
                   Sign in here

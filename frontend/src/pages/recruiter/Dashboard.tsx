@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,10 +21,54 @@ import ExtensiveFilters from '@/components/recruiter/ExtensiveFilters';
 import AIPoweredRanking from '@/components/recruiter/AIPoweredRanking';
 import CandidateCard from '@/components/recruiter/CandidateCard';
 import CandidateSortOptions from '@/components/recruiter/CandidateSortOptions';
-import { processFiltersWithGroq } from '@/services/groqService';
-import { RecruiterSearchFilters, GroqProcessedFilters } from '@/types/recruiter';
+import { RecruiterSearchFilters } from '@/types/recruiter';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+
+interface SearchAPIResponse {
+  results: Array<{
+    email: string;
+    name: string;
+    current_role: string;
+    company: string;
+    total_similarity_score: number;
+    aspect_scores: {
+      profile: number;
+      skills: number;
+      experience: number;
+      projects: number;
+      location: number;
+    };
+    aspect_queries: {
+      profile: string;
+      skills: string;
+      experience: string;
+      projects: string;
+      location: string;
+    };
+    user_token: string;
+  }>;
+  query: string;
+  count: number;
+  weights: {
+    profile: number;
+    skills: number;
+    experience: number;
+    projects: number;
+    location: number;
+  };
+}
+
+interface SearchProcessedFilters {
+  confidence: number;
+  reasoning: string;
+}
+
+interface LastSearchResults {
+  filters: RecruiterSearchFilters;
+  processedFilters: SearchProcessedFilters;
+  timestamp: Date;
+}
 
 const RecruiterDashboard = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -34,18 +78,14 @@ const RecruiterDashboard = () => {
   const [shortlistedCandidates, setShortlistedCandidates] = useState<string[]>([]);
   const [selectedCandidates, setSelectedCandidates] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState('matchScore');
-  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [isSearching, setIsSearching] = useState(false);
   const [searchProgress, setSearchProgress] = useState({
     step: '',
     progress: 0,
     details: ''
   });
-  const [lastSearchResults, setLastSearchResults] = useState<{
-    filters: RecruiterSearchFilters;
-    processedFilters: GroqProcessedFilters;
-    timestamp: Date;
-  } | null>(null);
+  const [lastSearchResults, setLastSearchResults] = useState<LastSearchResults | null>(null);
+  const [recruiterName, setRecruiterName] = useState('');
 
   const [workflows] = useState([
     { id: '1', name: 'Frontend Developer Hiring', stage: 'Screening', candidates: 12, activeCount: 3, totalCount: 12, progress: 25 },
@@ -361,66 +401,116 @@ const RecruiterDashboard = () => {
         jobDescription: searchQuery
       };
 
-      // Only process with Groq API if there's a search query or selected filters
-      if (searchQuery.trim() || selectedFilters.length > 0) {
-        updateSearchProgress('Analyzing search criteria...', 50, 'Using AI to find matching candidates');
-        const processedFilters = await processFiltersWithGroq(searchFilters, searchQuery);
-        console.log('Processed Filters:', processedFilters);
-
-        // Store search results
-        setLastSearchResults({
-          filters: searchFilters,
-          processedFilters,
-          timestamp: new Date()
-        });
-      }
-
-      // Apply filters to candidates
-      updateSearchProgress('Finding matching candidates...', 80, 'Applying search criteria');
-      let results = mockCandidates;
+      // Combine search parameters into a single string
+      const searchParams = new URLSearchParams();
       
-      // Apply basic search query if present
-      if (searchQuery.trim()) {
-        results = mockCandidates.filter(candidate => 
-          candidate.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          candidate.role.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          candidate.skills.some(skill => skill.toLowerCase().includes(searchQuery.toLowerCase())) ||
-          candidate.location.toLowerCase().includes(searchQuery.toLowerCase())
-        );
-      }
+      // Combine search query, filters, and job description
+      const combinedSearchString = [
+        searchQuery,
+        selectedFilters.join(' '),
+        JSON.stringify(searchFilters)
+      ].filter(Boolean).join(' ');
 
-      // Apply selected filters only if any are selected
-      if (selectedFilters.length > 0) {
-        results = results.filter(candidate => 
-          selectedFilters.some(filter => 
-            candidate.skills.some(skill => skill.toLowerCase().includes(filter.toLowerCase())) ||
-            candidate.role.toLowerCase().includes(filter.toLowerCase()) ||
-            candidate.status.toLowerCase().includes(filter.toLowerCase())
-          )
-        );
-      }
+      searchParams.append('q', combinedSearchString);
+      searchParams.append('k', '5'); // Number of results to return
 
-      setFilteredCandidates(results);
-      updateSearchProgress('Search complete!', 100, `Found ${results.length} matching candidates`);
+      updateSearchProgress('Searching candidates...', 50, 'Using AI to find matching candidates');
+
+      // Make API call to embeddings search endpoint
+      const response = await fetch(`https://hireai-2ek4.onrender.com/api/embeddings/search/?${searchParams.toString()}`, {
+        headers: {
+          'Authorization': 'Token 9dc575e3c2e3ca4afbdb43db80069d6d164d898d'
+        }
+      });
       
-      // Show success message with AI insights only if we processed filters
-      if (searchQuery.trim() || selectedFilters.length > 0) {
-        toast.success(
-          <div className="space-y-2">
-            <p>Search completed successfully!</p>
-            {lastSearchResults?.processedFilters && (
-              <>
-                <p className="text-sm text-gray-600">
-                  AI Confidence: {(lastSearchResults.processedFilters.confidence * 100).toFixed(1)}%
-                </p>
-                <p className="text-sm text-gray-600">
-                  {lastSearchResults.processedFilters.reasoning}
-                </p>
-              </>
-            )}
-          </div>
-        );
+      if (!response.ok) {
+        throw new Error(`Search failed with status: ${response.status}`);
       }
+
+      const searchResults = await response.json() as SearchAPIResponse;
+      console.log('Search Results:', searchResults);
+
+      // Process the search results
+      updateSearchProgress('Processing results...', 80, 'Analyzing candidate matches');
+      
+      // Map API results to candidate data structure
+      const processedCandidates = searchResults.results.map((result) => {
+        // Calculate match score as percentage (normalize total_similarity_score)
+        const normalizedScore = Math.min(result.total_similarity_score * 50, 100); // Scale score to 0-100
+
+        // Generate AI insight based on aspect scores
+        const topAspects = Object.entries(result.aspect_scores)
+          .sort(([, a], [, b]) => b - a)
+          .slice(0, 2)
+          .map(([aspect, score]) => `${aspect} (${(score * 100).toFixed(1)}%)`)
+          .join(', ');
+
+        return {
+          id: result.user_token,
+          name: result.name,
+          role: result.current_role,
+          title: result.current_role,
+          experience: '3 years', // This should come from the API
+          location: 'Not specified', // This should come from the API
+          skills: [], // This should come from the API
+          topMatchedSkills: [], // This should come from the API
+          skillGaps: [], // This should come from the API
+          score: normalizedScore,
+          matchScore: normalizedScore,
+          avatar: '/placeholder.svg',
+          summary: `Strong match in ${topAspects}`,
+          aiInsight: `Strong candidate with ${topAspects} matching your requirements`,
+          email: result.email,
+          phone: '', // This should come from the API
+          status: 'new' as const,
+          company: result.company || 'Not specified',
+          education: '', // This should come from the API
+          source: 'AI Search',
+          appliedDate: new Date().toISOString().split('T')[0],
+          availability: 'Not specified', // This should come from the API
+          seniorityLevel: 'Not specified', // This should come from the API
+          lastContact: undefined,
+          matchReasons: [
+            `Strong match in ${topAspects}`,
+            `Total similarity score: ${(result.total_similarity_score * 100).toFixed(1)}%`
+          ],
+          considerations: [],
+          projects: []
+        };
+      });
+
+      setFilteredCandidates(processedCandidates);
+
+      // Store search results
+      setLastSearchResults({
+        filters: searchFilters,
+        processedFilters: {
+          confidence: Number(searchResults.weights.profile) + Number(searchResults.weights.skills),
+          reasoning: `Matched based on ${Object.entries(searchResults.weights)
+            .filter(([, weight]) => weight > 0)
+            .map(([aspect, weight]) => `${aspect} (${(Number(weight) * 100).toFixed(0)}%)`)
+            .join(', ')}`
+        },
+        timestamp: new Date()
+      });
+
+      updateSearchProgress('Search complete!', 100, `Found ${processedCandidates.length} matching candidates`);
+      
+      // Show success message
+      toast.success(
+        <div className="space-y-2">
+          <p>Search completed successfully!</p>
+          <p className="text-sm text-gray-600">
+            Found {processedCandidates.length} matching candidates
+          </p>
+          <p className="text-xs text-gray-500">
+            Top matches based on: {Object.entries(searchResults.weights)
+              .filter(([, weight]) => weight > 0)
+              .map(([aspect, weight]) => `${aspect} (${(Number(weight) * 100).toFixed(0)}%)`)
+              .join(', ')}
+          </p>
+        </div>
+      );
 
     } catch (error) {
       console.error('Search error:', error);
@@ -497,6 +587,14 @@ const RecruiterDashboard = () => {
     }
   });
 
+  useEffect(() => {
+    const recruiterUser = sessionStorage.getItem('recruiterUser');
+    if (recruiterUser) {
+      const userData = JSON.parse(recruiterUser);
+      setRecruiterName(`${userData.first_name} ${userData.last_name}`);
+    }
+  }, []);
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Enhanced Header */}
@@ -529,11 +627,11 @@ const RecruiterDashboard = () => {
               New Job
             </Button>
             
-            <span className="text-sm font-medium">Hi Alex!</span>
+            <span className="text-sm font-medium">Hi {recruiterName}!</span>
             
             <Avatar>
               <AvatarImage src="/placeholder.svg" />
-              <AvatarFallback>AV</AvatarFallback>
+              <AvatarFallback>{recruiterName.split(' ').map(n => n[0]).join('')}</AvatarFallback>
             </Avatar>
           </div>
         </div>
@@ -773,12 +871,10 @@ const RecruiterDashboard = () => {
                   <CandidateSortOptions
                     sortBy={sortBy}
                     onSortChange={setSortBy}
-                    viewMode={viewMode}
-                    onViewModeChange={setViewMode}
                     candidateCount={sortedCandidates.length}
                   />
 
-                  <div className={`${viewMode === 'grid' ? 'grid grid-cols-1 lg:grid-cols-2 gap-6' : 'space-y-4'}`}>
+                  <div className="space-y-4">
                     {sortedCandidates.map((candidate) => (
                       <CandidateCard
                         key={candidate.id}

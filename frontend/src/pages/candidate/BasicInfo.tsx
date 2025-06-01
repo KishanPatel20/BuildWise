@@ -36,12 +36,15 @@ const BasicInfo = () => {
 
   useEffect(() => {
     if (candidateData) {
+      // Split the name into first and last name
+      const [firstName = '', lastName = ''] = (candidateData.name || '').split(' ');
+      
       setForm({
-        firstName: candidateData.first_name || '',
-        lastName: candidateData.last_name || '',
-        email: candidateData.email || '',
+        firstName: firstName || candidateData.user?.first_name || '',
+        lastName: lastName || candidateData.user?.last_name || '',
+        email: candidateData.email || candidateData.user?.email || '',
         phone: candidateData.phone || '',
-        location: candidateData.location || '',
+        location: candidateData.preferred_locations || '',
         gender: candidateData.gender || '',
         dateOfBirth: candidateData.date_of_birth || '',
         linkedinProfile: candidateData.linkedin_profile || '',
@@ -50,7 +53,7 @@ const BasicInfo = () => {
         currentJobTitle: candidateData.current_job_title || '',
         currentCompany: candidateData.current_company || '',
         skills: candidateData.skills || '',
-        experience: candidateData.experience?.toString() || ''
+        experience: candidateData.experience?.toString() || '0'
       });
     }
   }, [candidateData]);

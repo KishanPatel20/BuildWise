@@ -50,7 +50,7 @@ const WorkExperience = () => {
         company: exp.company_name,
         position: exp.role_designation,
         startDate: exp.start_date || '',
-        endDate: exp.end_date || '',
+        endDate: exp.is_current ? '' : (exp.end_date || ''),
         isCurrentJob: exp.is_current,
         description: exp.responsibilities || '',
         location: '', // API doesn't provide location
@@ -327,7 +327,7 @@ const WorkExperience = () => {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor={`endDate-${experience.id}`}>
-                        End Date {experience.isCurrentJob ? '(Current Job)' : '*'}
+                        End Date {experience.isCurrentJob ? '(Currently Working)' : ''}
                       </Label>
                       <Input
                         id={`endDate-${experience.id}`}
@@ -335,7 +335,6 @@ const WorkExperience = () => {
                         value={experience.endDate}
                         onChange={(e) => updateExperience(experience.id, 'endDate', e.target.value)}
                         disabled={experience.isCurrentJob}
-                        required={!experience.isCurrentJob}
                       />
                     </div>
                   </div>

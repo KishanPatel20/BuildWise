@@ -65,10 +65,30 @@ const Login = () => {
     }
   };
 
-  const handleRecruiterLogin = (e: React.FormEvent) => {
+  const handleRecruiterLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Mock login - redirect to recruiter dashboard
-    navigate('/recruiter/dashboard');
+    setIsLoading(true);
+    try {
+      const response = await axios.post(`${API_BASE_URL}/recruiter/login/`, {
+        username: recruiterForm.email,
+        password: recruiterForm.password
+      });
+
+      if (response.data.token) {
+        // Store token in sessionStorage
+        sessionStorage.setItem('recruiterToken', response.data.token);
+        // Store user data
+        sessionStorage.setItem('recruiterUser', JSON.stringify(response.data.user));
+        
+        toast.success('Login successful!');
+        navigate('/recruiter/dashboard');
+      }
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || 'Login failed. Please try again.';
+      toast.error(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -198,8 +218,13 @@ const Login = () => {
                       />
                     </div>
                   </div>
-                  <Button type="submit" className="w-full bg-green-600 hover:bg-green-700" size="lg">
-                    Sign In as Recruiter
+                  <Button 
+                    type="submit" 
+                    className="w-full bg-green-600 hover:bg-green-700" 
+                    size="lg"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? 'Signing in...' : 'Sign In as Recruiter'}
                   </Button>
                   <p className="text-center text-sm text-gray-600">
                     Don't have an account?{' '}

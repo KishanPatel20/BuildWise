@@ -5,58 +5,57 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 interface CandidateData {
   id?: number;
-  first_name?: string;
-  last_name?: string;
+  user?: {
+    id: number;
+    username: string;
+    email: string;
+    first_name: string;
+    last_name: string;
+  };
+  name?: string;
   email?: string;
   phone?: string;
-  location?: string;
-  gender?: string;
-  date_of_birth?: string;
+  gender?: string | null;
+  date_of_birth?: string | null;
   linkedin_profile?: string;
   github_profile?: string;
   portfolio_link?: string;
-  current_job_title?: string;
-  current_company?: string;
+  resume?: string;
   skills?: string;
   experience?: number;
-  education?: Array<{
+  current_job_title?: string | null;
+  current_company?: string;
+  desired_roles?: string | null;
+  preferred_industry_sector?: string | null;
+  employment_type_preferences?: string;
+  preferred_locations?: string | null;
+  desired_salary_range?: string | null;
+  willingness_to_relocate?: boolean;
+  is_actively_looking?: boolean;
+  status?: string;
+  view_count?: number;
+  created_at?: string;
+  updated_at?: string;
+  work_experiences?: Array<{
     id: number;
-    institution: string;
-    degree: string;
-    field_of_study: string;
-    start_year: string;
-    end_year: string;
-    grade: string;
-  }>;
-  work_experience?: Array<{
-    id: number;
-    company: string;
-    position: string;
-    start_date: string;
-    end_date: string;
-    is_current_job: boolean;
-    description: string;
-    location: string;
+    company_name: string;
+    role_designation: string;
+    start_date: string | null;
+    end_date: string | null;
+    is_current: boolean;
+    responsibilities: string;
+    technologies_used: string;
   }>;
   projects?: Array<{
     id: number;
     title: string;
     description: string;
-    technologies: string;
-    start_date: string;
-    end_date: string;
-    project_url: string;
-    github_url: string;
+    tech_stack: string;
+    role_in_project: string;
+    github_link: string | null;
+    live_link: string | null;
   }>;
-  certifications?: Array<{
-    id: number;
-    name: string;
-    issuing_organization: string;
-    issue_date: string;
-    expiration_date: string;
-    credential_id: string;
-    credential_url: string;
-  }>;
+  certifications?: Array<any>;
 }
 
 interface CandidateContextType {
@@ -94,41 +93,55 @@ export function CandidateProvider({ children }: { children: ReactNode }) {
       // Transform the data to match our frontend structure
       const transformedData: CandidateData = {
         id: response.data.id,
-        first_name: response.data.first_name,
-        last_name: response.data.last_name,
+        user: {
+          id: response.data.user.id,
+          username: response.data.user.username,
+          email: response.data.user.email,
+          first_name: response.data.user.first_name,
+          last_name: response.data.user.last_name,
+        },
+        name: response.data.name,
         email: response.data.email,
         phone: response.data.phone,
-        location: response.data.location,
         gender: response.data.gender,
         date_of_birth: response.data.date_of_birth,
-        education: response.data.education?.map((edu: any) => ({
-          id: edu.id,
-          institution: edu.institution,
-          degree: edu.degree,
-          field_of_study: edu.field_of_study,
-          start_year: edu.start_year,
-          end_year: edu.end_year,
-          grade: edu.grade
-        })),
-        work_experience: response.data.work_experience?.map((exp: any) => ({
+        linkedin_profile: response.data.linkedin_profile,
+        github_profile: response.data.github_profile,
+        portfolio_link: response.data.portfolio_link,
+        resume: response.data.resume,
+        skills: response.data.skills,
+        experience: response.data.experience,
+        current_job_title: response.data.current_job_title,
+        current_company: response.data.current_company,
+        desired_roles: response.data.desired_roles,
+        preferred_industry_sector: response.data.preferred_industry_sector,
+        employment_type_preferences: response.data.employment_type_preferences,
+        preferred_locations: response.data.preferred_locations,
+        desired_salary_range: response.data.desired_salary_range,
+        willingness_to_relocate: response.data.willingness_to_relocate,
+        is_actively_looking: response.data.is_actively_looking,
+        status: response.data.status,
+        view_count: response.data.view_count,
+        created_at: response.data.created_at,
+        updated_at: response.data.updated_at,
+        work_experiences: response.data.work_experiences?.map((exp: any) => ({
           id: exp.id,
-          company: exp.company,
-          position: exp.position,
+          company_name: exp.company_name,
+          role_designation: exp.role_designation,
           start_date: exp.start_date,
           end_date: exp.end_date,
-          is_current_job: exp.is_current_job,
-          description: exp.description,
-          location: exp.location
+          is_current: exp.is_current,
+          responsibilities: exp.responsibilities,
+          technologies_used: exp.technologies_used
         })),
         projects: response.data.projects?.map((proj: any) => ({
           id: proj.id,
           title: proj.title,
           description: proj.description,
-          technologies: proj.technologies,
-          start_date: proj.start_date,
-          end_date: proj.end_date,
-          project_url: proj.project_url,
-          github_url: proj.github_url
+          tech_stack: proj.tech_stack,
+          role_in_project: proj.role_in_project,
+          github_link: proj.github_link,
+          live_link: proj.live_link
         })),
         certifications: response.data.certifications?.map((cert: any) => ({
           id: cert.id,

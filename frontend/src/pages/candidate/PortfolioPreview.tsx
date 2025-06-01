@@ -154,6 +154,31 @@ const PortfolioPreview = () => {
           <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
             Your professional profile has been created successfully. Here's a preview of how recruiters will see your information.
           </p>
+
+          {/* Action Buttons - Moved to top */}
+          <div className="flex justify-center space-x-4 mb-12">
+            <Button
+              variant="outline"
+              onClick={() => navigate('/candidate/job-preferences')}
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Go Back
+            </Button>
+            <Button
+              variant="outline"
+              className="flex items-center space-x-2"
+            >
+              <Edit className="w-4 h-4" />
+              <span>Edit Profile</span>
+            </Button>
+            <Button
+              className="bg-blue-600 hover:bg-blue-700 flex items-center space-x-2"
+              onClick={handleGoToDashboard}
+            >
+              <Eye className="w-4 h-4" />
+              <span>Go to Dashboard</span>
+            </Button>
+          </div>
           
           {/* Profile Stats */}
           <div className="flex justify-center space-x-4 mb-8">
@@ -183,7 +208,7 @@ const PortfolioPreview = () => {
           {/* Left Column */}
           <div className="space-y-6">
             {/* Basic Info */}
-            <Card>
+            <Card className="overflow-hidden">
               <CardHeader>
                 <div className="flex items-center space-x-3">
                   <User className="w-5 h-5 text-blue-600" />
@@ -191,43 +216,43 @@ const PortfolioPreview = () => {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div>
+                <div className="break-words">
                   <h3 className="font-semibold text-2xl text-gray-800">
                     {portfolioData?.name}
                   </h3>
-                  <p className="text-gray-600">{portfolioData?.current_job_title} at {portfolioData?.current_company}</p>
+                  <p className="text-gray-600 break-words">{portfolioData?.current_job_title} at {portfolioData?.current_company}</p>
                 </div>
                 <div className="space-y-2 text-sm">
-                  <div className="flex items-center space-x-2">
-                    <Mail className="w-4 h-4 text-gray-500" />
-                    <span>{portfolioData?.email}</span>
+                  <div className="flex items-center space-x-2 break-words">
+                    <Mail className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                    <span className="truncate">{portfolioData?.email}</span>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Phone className="w-4 h-4 text-gray-500" />
-                    <span>{portfolioData?.phone}</span>
+                  <div className="flex items-center space-x-2 break-words">
+                    <Phone className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                    <span className="truncate">{portfolioData?.phone}</span>
                   </div>
                   {portfolioData?.linkedin_profile && (
-                    <a href={portfolioData.linkedin_profile} target="_blank" rel="noopener noreferrer" className="flex items-center space-x-2 text-blue-600 hover:underline">
-                      <Link className="w-4 h-4" />
-                      <span>LinkedIn Profile</span>
+                    <a href={portfolioData.linkedin_profile} target="_blank" rel="noopener noreferrer" className="flex items-center space-x-2 text-blue-600 hover:underline break-words">
+                      <Link className="w-4 h-4 flex-shrink-0" />
+                      <span className="truncate">LinkedIn Profile</span>
                     </a>
                   )}
                   {portfolioData?.github_profile && (
-                    <a href={portfolioData.github_profile} target="_blank" rel="noopener noreferrer" className="flex items-center space-x-2 text-gray-600 hover:underline">
-                      <Link className="w-4 h-4" />
-                      <span>GitHub Profile</span>
+                    <a href={portfolioData.github_profile} target="_blank" rel="noopener noreferrer" className="flex items-center space-x-2 text-gray-600 hover:underline break-words">
+                      <Link className="w-4 h-4 flex-shrink-0" />
+                      <span className="truncate">GitHub Profile</span>
                     </a>
                   )}
                   {portfolioData?.portfolio_link && (
-                    <a href={portfolioData.portfolio_link} target="_blank" rel="noopener noreferrer" className="flex items-center space-x-2 text-purple-600 hover:underline">
-                      <Link className="w-4 h-4" />
-                      <span>Portfolio Website</span>
+                    <a href={portfolioData.portfolio_link} target="_blank" rel="noopener noreferrer" className="flex items-center space-x-2 text-purple-600 hover:underline break-words">
+                      <Link className="w-4 h-4 flex-shrink-0" />
+                      <span className="truncate">Portfolio Website</span>
                     </a>
                   )}
                   {portfolioData?.resume && (
-                    <a href={portfolioData.resume} target="_blank" rel="noopener noreferrer" className="flex items-center space-x-2 text-green-600 hover:underline">
-                      <FileText className="w-4 h-4" />
-                      <span>View Resume</span>
+                    <a href={portfolioData.resume} target="_blank" rel="noopener noreferrer" className="flex items-center space-x-2 text-green-600 hover:underline break-words">
+                      <FileText className="w-4 h-4 flex-shrink-0" />
+                      <span className="truncate">View Resume</span>
                     </a>
                   )}
                 </div>
@@ -236,7 +261,7 @@ const PortfolioPreview = () => {
                     <h4 className="font-medium text-sm text-gray-700 mb-2">Skills</h4>
                     <div className="flex flex-wrap gap-2">
                       {portfolioData.skills.split(',').map((skill, index) => (
-                        <span key={index} className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
+                        <span key={index} className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs truncate max-w-[200px]">
                           {skill.trim()}
                         </span>
                       ))}
@@ -248,7 +273,7 @@ const PortfolioPreview = () => {
 
             {/* Job Preferences */}
             {profileData.jobPreferences?.jobTitle && (
-              <Card>
+              <Card className="overflow-hidden">
                 <CardHeader>
                   <div className="flex items-center space-x-3">
                     <Target className="w-5 h-5 text-green-600" />
@@ -256,16 +281,16 @@ const PortfolioPreview = () => {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm">
-                  <div>
+                  <div className="break-words">
                     <span className="font-medium">Role:</span> {profileData.jobPreferences.jobTitle}
                   </div>
-                  <div>
-                    <span className="font-medium">Type:</span> {profileData.jobPreferences.jobType}
+                  <div className="break-words">
+                    <span className="font-medium">Types:</span> {profileData.jobPreferences.jobTypes?.join(', ')}
                   </div>
-                  <div>
-                    <span className="font-medium">Work Mode:</span> {profileData.jobPreferences.workMode}
+                  <div className="break-words">
+                    <span className="font-medium">Work Modes:</span> {profileData.jobPreferences.workModes?.join(', ')}
                   </div>
-                  <div>
+                  <div className="break-words">
                     <span className="font-medium">Location:</span> {profileData.jobPreferences.preferredLocations}
                   </div>
                   {profileData.jobPreferences.expectedSalary && (
@@ -273,7 +298,7 @@ const PortfolioPreview = () => {
                       <span className="font-medium">Salary:</span> ${profileData.jobPreferences.expectedSalary} {profileData.jobPreferences.salaryType}
                     </div>
                   )}
-                  <div>
+                  <div className="break-words">
                     <span className="font-medium">Skills:</span> {profileData.jobPreferences.skills}
                   </div>
                 </CardContent>
@@ -285,7 +310,7 @@ const PortfolioPreview = () => {
           <div className="space-y-6">
             {/* Work Experience */}
             {portfolioData?.work_experiences?.length > 0 && (
-              <Card>
+              <Card className="overflow-hidden">
                 <CardHeader>
                   <div className="flex items-center space-x-3">
                     <Briefcase className="w-5 h-5 text-blue-600" />
@@ -294,7 +319,7 @@ const PortfolioPreview = () => {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {portfolioData.work_experiences.map((exp) => (
-                    <div key={exp.id} className="border-l-2 border-blue-200 pl-4">
+                    <div key={exp.id} className="border-l-2 border-blue-200 pl-4 break-words">
                       <h4 className="font-semibold">{exp.role_designation}</h4>
                       <p className="text-blue-600 font-medium">{exp.company_name}</p>
                       <p className="text-sm text-gray-600">
@@ -303,11 +328,11 @@ const PortfolioPreview = () => {
                       {exp.responsibilities && (
                         <div className="mt-2">
                           <p className="text-sm font-medium text-gray-700 mb-1">Responsibilities:</p>
-                          <p className="text-sm text-gray-600 whitespace-pre-line">{exp.responsibilities}</p>
+                          <p className="text-sm text-gray-600 whitespace-pre-line break-words">{exp.responsibilities}</p>
                         </div>
                       )}
                       {exp.technologies_used && (
-                        <p className="text-sm mt-2">
+                        <p className="text-sm mt-2 break-words">
                           <span className="font-medium">Technologies:</span> {exp.technologies_used}
                         </p>
                       )}
@@ -322,7 +347,7 @@ const PortfolioPreview = () => {
           <div className="space-y-6">
             {/* Projects */}
             {portfolioData?.projects?.length > 0 && (
-              <Card>
+              <Card className="overflow-hidden">
                 <CardHeader>
                   <div className="flex items-center space-x-3">
                     <Code className="w-5 h-5 text-purple-600" />
@@ -331,24 +356,24 @@ const PortfolioPreview = () => {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {portfolioData.projects.map((project) => (
-                    <div key={project.id} className="border-l-2 border-purple-200 pl-4">
+                    <div key={project.id} className="border-l-2 border-purple-200 pl-4 break-words">
                       <h4 className="font-semibold">{project.title}</h4>
-                      <p className="text-sm text-gray-600 mb-2">{project.description}</p>
-                      <p className="text-sm"><span className="font-medium">Tech Stack:</span> {project.tech_stack}</p>
+                      <p className="text-sm text-gray-600 mb-2 break-words">{project.description}</p>
+                      <p className="text-sm break-words"><span className="font-medium">Tech Stack:</span> {project.tech_stack}</p>
                       {project.role_in_project && project.role_in_project !== 'Not specified' && (
-                        <p className="text-sm"><span className="font-medium">Role:</span> {project.role_in_project}</p>
+                        <p className="text-sm break-words"><span className="font-medium">Role:</span> {project.role_in_project}</p>
                       )}
                       <div className="flex space-x-4 mt-2">
                         {project.github_link && (
-                          <a href={project.github_link} target="_blank" rel="noopener noreferrer" className="text-sm text-gray-600 hover:text-gray-900 flex items-center">
-                            <ExternalLink className="w-3 h-3 mr-1" />
-                            GitHub
+                          <a href={project.github_link} target="_blank" rel="noopener noreferrer" className="text-sm text-gray-600 hover:text-gray-900 flex items-center break-words">
+                            <ExternalLink className="w-3 h-3 mr-1 flex-shrink-0" />
+                            <span className="truncate">GitHub</span>
                           </a>
                         )}
                         {project.live_link && (
-                          <a href={project.live_link} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:text-blue-800 flex items-center">
-                            <ExternalLink className="w-3 h-3 mr-1" />
-                            Live Demo
+                          <a href={project.live_link} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:text-blue-800 flex items-center break-words">
+                            <ExternalLink className="w-3 h-3 mr-1 flex-shrink-0" />
+                            <span className="truncate">Live Demo</span>
                           </a>
                         )}
                       </div>
@@ -358,31 +383,6 @@ const PortfolioPreview = () => {
               </Card>
             )}
           </div>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex justify-center space-x-4 mt-12">
-          <Button
-            variant="outline"
-            onClick={() => navigate('/candidate/job-preferences')}
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Go Back
-          </Button>
-          <Button
-            variant="outline"
-            className="flex items-center space-x-2"
-          >
-            <Edit className="w-4 h-4" />
-            <span>Edit Profile</span>
-          </Button>
-          <Button
-            className="bg-blue-600 hover:bg-blue-700 flex items-center space-x-2"
-            onClick={handleGoToDashboard}
-          >
-            <Eye className="w-4 h-4" />
-            <span>Go to Dashboard</span>
-          </Button>
         </div>
       </div>
     </div>

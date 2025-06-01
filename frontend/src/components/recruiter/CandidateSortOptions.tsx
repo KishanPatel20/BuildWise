@@ -1,8 +1,6 @@
-
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { LayoutGrid, List, ArrowUpDown } from 'lucide-react';
+import { ArrowUpDown } from 'lucide-react';
 
 interface SortOption {
   value: string;
@@ -13,16 +11,12 @@ interface SortOption {
 interface CandidateSortOptionsProps {
   sortBy: string;
   onSortChange: (value: string) => void;
-  viewMode: 'list' | 'grid';
-  onViewModeChange: (mode: 'list' | 'grid') => void;
   candidateCount: number;
 }
 
 const CandidateSortOptions: React.FC<CandidateSortOptionsProps> = ({
   sortBy,
   onSortChange,
-  viewMode,
-  onViewModeChange,
   candidateCount
 }) => {
   const sortOptions: SortOption[] = [
@@ -182,28 +176,6 @@ const CandidateSortOptions: React.FC<CandidateSortOptionsProps> = ({
             {currentSort.description}
           </div>
         )}
-      </div>
-      
-      <div className="flex items-center space-x-2">
-        <span className="text-sm text-gray-600">View:</span>
-        <div className="flex rounded-lg border">
-          <Button
-            size="sm"
-            variant={viewMode === 'list' ? 'default' : 'ghost'}
-            onClick={() => onViewModeChange('list')}
-            className="rounded-r-none"
-          >
-            <List className="w-4 h-4" />
-          </Button>
-          <Button
-            size="sm"
-            variant={viewMode === 'grid' ? 'default' : 'ghost'}
-            onClick={() => onViewModeChange('grid')}
-            className="rounded-l-none border-l"
-          >
-            <LayoutGrid className="w-4 h-4" />
-          </Button>
-        </div>
       </div>
     </div>
   );

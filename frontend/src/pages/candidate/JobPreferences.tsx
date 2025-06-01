@@ -1,10 +1,10 @@
-
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Target } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
@@ -14,8 +14,8 @@ const JobPreferences = () => {
   const [preferences, setPreferences] = useState({
     jobTitle: '',
     preferredLocations: '',
-    jobType: '',
-    workMode: '',
+    jobTypes: [] as string[],
+    workModes: [] as string[],
     expectedSalary: '',
     salaryType: '',
     availability: '',
@@ -23,8 +23,31 @@ const JobPreferences = () => {
     industries: ''
   });
 
+  const handleJobTypeChange = (value: string) => {
+    setPreferences(prev => ({
+      ...prev,
+      jobTypes: prev.jobTypes.includes(value)
+        ? prev.jobTypes.filter(type => type !== value)
+        : [...prev.jobTypes, value]
+    }));
+  };
+
+  const handleWorkModeChange = (value: string) => {
+    setPreferences(prev => ({
+      ...prev,
+      workModes: prev.workModes.includes(value)
+        ? prev.workModes.filter(mode => mode !== value)
+        : [...prev.workModes, value]
+    }));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // Validate that at least one job type and work mode is selected
+    if (preferences.jobTypes.length === 0 || preferences.workModes.length === 0) {
+      alert('Please select at least one job type and work mode');
+      return;
+    }
     localStorage.setItem('candidateJobPreferences', JSON.stringify(preferences));
     navigate('/candidate/portfolio-preview');
   };
@@ -100,48 +123,70 @@ const JobPreferences = () => {
 
               <div className="space-y-3">
                 <Label>Job Type *</Label>
-                <RadioGroup 
-                  value={preferences.jobType} 
-                  onValueChange={(value) => setPreferences({ ...preferences, jobType: value })}
-                >
+                <div className="space-y-2">
                   <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="full-time" id="full-time" />
+                    <Checkbox
+                      id="full-time"
+                      checked={preferences.jobTypes.includes('full-time')}
+                      onCheckedChange={() => handleJobTypeChange('full-time')}
+                    />
                     <Label htmlFor="full-time">Full-time</Label>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="part-time" id="part-time" />
+                    <Checkbox
+                      id="part-time"
+                      checked={preferences.jobTypes.includes('part-time')}
+                      onCheckedChange={() => handleJobTypeChange('part-time')}
+                    />
                     <Label htmlFor="part-time">Part-time</Label>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="contract" id="contract" />
+                    <Checkbox
+                      id="contract"
+                      checked={preferences.jobTypes.includes('contract')}
+                      onCheckedChange={() => handleJobTypeChange('contract')}
+                    />
                     <Label htmlFor="contract">Contract</Label>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="internship" id="internship" />
+                    <Checkbox
+                      id="internship"
+                      checked={preferences.jobTypes.includes('internship')}
+                      onCheckedChange={() => handleJobTypeChange('internship')}
+                    />
                     <Label htmlFor="internship">Internship</Label>
                   </div>
-                </RadioGroup>
+                </div>
               </div>
 
               <div className="space-y-3">
                 <Label>Work Mode *</Label>
-                <RadioGroup 
-                  value={preferences.workMode} 
-                  onValueChange={(value) => setPreferences({ ...preferences, workMode: value })}
-                >
+                <div className="space-y-2">
                   <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="remote" id="remote" />
+                    <Checkbox
+                      id="remote"
+                      checked={preferences.workModes.includes('remote')}
+                      onCheckedChange={() => handleWorkModeChange('remote')}
+                    />
                     <Label htmlFor="remote">Remote</Label>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="hybrid" id="hybrid" />
+                    <Checkbox
+                      id="hybrid"
+                      checked={preferences.workModes.includes('hybrid')}
+                      onCheckedChange={() => handleWorkModeChange('hybrid')}
+                    />
                     <Label htmlFor="hybrid">Hybrid</Label>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="onsite" id="onsite" />
+                    <Checkbox
+                      id="onsite"
+                      checked={preferences.workModes.includes('onsite')}
+                      onCheckedChange={() => handleWorkModeChange('onsite')}
+                    />
                     <Label htmlFor="onsite">On-site</Label>
                   </div>
-                </RadioGroup>
+                </div>
               </div>
 
               <div className="grid md:grid-cols-2 gap-4">
