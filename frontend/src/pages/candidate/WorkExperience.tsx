@@ -1,5 +1,4 @@
-
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,6 +7,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Briefcase, Plus, Trash2 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
+import axios from 'axios';
+import { toast } from 'sonner';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 interface WorkExperience {
   id: string;
@@ -18,28 +21,101 @@ interface WorkExperience {
   isCurrentJob: boolean;
   description: string;
   location: string;
+  technologiesUsed?: string;
 }
 
 const WorkExperience = () => {
   const navigate = useNavigate();
   const [experiences, setExperiences] = useState<WorkExperience[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const fetchWorkExperiences = async () => {
+    const token = sessionStorage.getItem('token');
+    if (!token) {
+      toast.error('Please login to continue');
+      navigate('/login');
+      return;
+    }
+
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/work-experiences/`, {
+        headers: {
+          'Authorization': `Token ${token}`
+        }
+      });
+
+      const transformedExperience = response.data.map((exp: any) => ({
+        id: exp.id.toString(),
+        company: exp.company_name,
+        position: exp.role_designation,
+        startDate: exp.start_date || '',
+        endDate: exp.end_date || '',
+        isCurrentJob: exp.is_current,
+        description: exp.responsibilities || '',
+        location: '', // API doesn't provide location
+        technologiesUsed: exp.technologies_used || ''
+      }));
+
+      setExperiences(transformedExperience);
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        toast.error(error.response?.data?.message || 'Failed to fetch work experience');
+      } else {
+        toast.error('An unexpected error occurred');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchWorkExperiences();
+  }, []);
 
   const addExperience = () => {
     const newExperience: WorkExperience = {
-      id: Date.now().toString(),
+      id: 'new',
       company: '',
       position: '',
       startDate: '',
       endDate: '',
       isCurrentJob: false,
       description: '',
-      location: ''
+      location: '',
+      technologiesUsed: ''
     };
     setExperiences([...experiences, newExperience]);
   };
 
-  const removeExperience = (id: string) => {
-    setExperiences(experiences.filter(exp => exp.id !== id));
+  const removeExperience = async (id: string) => {
+    if (id === 'new') {
+      setExperiences(experiences.filter(exp => exp.id !== id));
+      return;
+    }
+
+    const token = sessionStorage.getItem('token');
+    if (!token) {
+      toast.error('Please login to continue');
+      navigate('/login');
+      return;
+    }
+
+    try {
+      await axios.delete(`${API_BASE_URL}/api/work-experiences/${id}/`, {
+        headers: {
+          'Authorization': `Token ${token}`
+        }
+      });
+      setExperiences(experiences.filter(exp => exp.id !== id));
+      toast.success('Work experience removed successfully');
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        toast.error(error.response?.data?.message || 'Failed to remove work experience');
+      } else {
+        toast.error('An unexpected error occurred');
+      }
+    }
   };
 
   const updateExperience = (id: string, field: keyof WorkExperience, value: string | boolean) => {
@@ -48,20 +124,81 @@ const WorkExperience = () => {
     ));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    localStorage.setItem('candidateWorkExperience', JSON.stringify(experiences));
-    navigate('/candidate/projects');
+    setIsSubmitting(true);
+
+    const token = sessionStorage.getItem('token');
+    if (!token) {
+      toast.error('Please login to continue');
+      navigate('/login');
+      return;
+    }
+
+    try {
+      // Handle both new and existing work experiences
+      const promises = experiences.map(async (experience) => {
+        const experienceData = {
+          company_name: experience.company,
+          role_designation: experience.position,
+          start_date: experience.startDate || null,
+          end_date: experience.isCurrentJob ? null : experience.endDate || null,
+          is_current: experience.isCurrentJob,
+          responsibilities: experience.description,
+          technologies_used: experience.technologiesUsed
+        };
+
+        if (experience.id === 'new') {
+          // Create new work experience
+          return axios.post(`${API_BASE_URL}/api/work-experiences/`, experienceData, {
+            headers: {
+              'Authorization': `Token ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+        } else {
+          // Update existing work experience
+          return axios.patch(`${API_BASE_URL}/api/work-experiences/${experience.id}/`, experienceData, {
+            headers: {
+              'Authorization': `Token ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+        }
+      });
+
+      await Promise.all(promises);
+      toast.success('Work experience updated successfully');
+      navigate('/candidate/projects');
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        toast.error(error.response?.data?.message || 'Failed to update work experience');
+      } else {
+        toast.error('An unexpected error occurred');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const skipStep = () => {
-    localStorage.setItem('candidateWorkExperience', JSON.stringify([]));
     navigate('/candidate/projects');
   };
 
   const currentStep = 4;
   const totalSteps = 7;
   const progressValue = (currentStep / totalSteps) * 100;
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
@@ -220,13 +357,23 @@ const WorkExperience = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor={`description-${experience.id}`}>Description</Label>
+                    <Label htmlFor={`description-${experience.id}`}>Responsibilities & Achievements</Label>
                     <Textarea
                       id={`description-${experience.id}`}
                       placeholder="Describe your responsibilities and achievements..."
                       rows={4}
                       value={experience.description}
                       onChange={(e) => updateExperience(experience.id, 'description', e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor={`technologies-${experience.id}`}>Technologies Used</Label>
+                    <Input
+                      id={`technologies-${experience.id}`}
+                      placeholder="e.g., React, Node.js, Python, etc."
+                      value={experience.technologiesUsed}
+                      onChange={(e) => updateExperience(experience.id, 'technologiesUsed', e.target.value)}
                     />
                   </div>
                 </CardContent>
@@ -252,9 +399,22 @@ const WorkExperience = () => {
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back
               </Button>
-              <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
-                Continue
-                <ArrowRight className="w-4 h-4 ml-2" />
+              <Button 
+                type="submit" 
+                className="bg-blue-600 hover:bg-blue-700"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    Continue
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </>
+                )}
               </Button>
             </div>
           </form>

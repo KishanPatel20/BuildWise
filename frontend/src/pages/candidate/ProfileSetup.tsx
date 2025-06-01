@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { Upload, FileText, User, ArrowRight, ArrowLeft } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'sonner';
+import { useCandidate } from '@/context/CandidateContext';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -13,6 +14,11 @@ const ProfileSetup = () => {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { fetchCandidateData } = useCandidate();
   
   const steps = [
     { title: 'Resume Upload', icon: Upload },
@@ -57,8 +63,65 @@ const ProfileSetup = () => {
     checkProfileStatus();
   }, [navigate]);
 
-  const handleResumeUpload = () => {
-    setCurrentStep(1);
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      if (file.type !== 'application/pdf' && 
+          file.type !== 'application/msword' && 
+          file.type !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+        setUploadError('Please upload a PDF or Word document');
+        return;
+      }
+      setUploadedFile(file);
+      setUploadError(null);
+    }
+  };
+
+  const handleResumeUpload = async () => {
+    if (!uploadedFile) {
+      setUploadError('Please select a file to upload');
+      return;
+    }
+
+    const token = sessionStorage.getItem('token');
+    if (!token) {
+      toast.error('Please login to continue');
+      navigate('/login');
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadError(null);
+
+    const formData = new FormData();
+    formData.append('resume', uploadedFile);
+
+    try {
+      const response = await axios.post(
+        `${API_BASE_URL}/api/candidates/upload_resume/`,
+        formData,
+        {
+          headers: {
+            'Authorization': `Token ${token}`,
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      );
+
+      if (response.data.profile_updated) {
+        toast.success('Resume uploaded successfully!');
+        // Fetch the updated candidate data
+        await fetchCandidateData();
+        setCurrentStep(1);
+      }
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        setUploadError(error.response?.data?.message || 'Failed to upload resume. Please try again.');
+        toast.error('Failed to upload resume');
+      }
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleManualEntry = () => {
@@ -146,14 +209,54 @@ const ProfileSetup = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="text-center">
-                  <Button 
-                    className="w-full bg-blue-600 hover:bg-blue-700" 
-                    size="lg"
-                    onClick={handleResumeUpload}
-                  >
-                    Choose File
-                    <Upload className="ml-2 w-4 h-4" />
-                  </Button>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    accept=".pdf,.doc,.docx"
+                    className="hidden"
+                  />
+                  <div className="space-y-4">
+                    <Button 
+                      className="w-full bg-blue-600 hover:bg-blue-700" 
+                      size="lg"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploading}
+                    >
+                      {uploadedFile ? 'Change File' : 'Choose File'}
+                      <Upload className="ml-2 w-4 h-4" />
+                    </Button>
+                    
+                    {uploadedFile && (
+                      <div className="text-sm text-gray-600">
+                        Selected: {uploadedFile.name}
+                      </div>
+                    )}
+                    
+                    {uploadError && (
+                      <div className="text-sm text-red-600">
+                        {uploadError}
+                      </div>
+                    )}
+                    
+                    {uploadedFile && (
+                      <Button 
+                        className="w-full bg-green-600 hover:bg-green-700" 
+                        size="lg"
+                        onClick={handleResumeUpload}
+                        disabled={isUploading}
+                      >
+                        {isUploading ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                            Uploading...
+                          </>
+                        ) : (
+                          'Upload Resume'
+                        )}
+                      </Button>
+                    )}
+                  </div>
                   <p className="text-xs text-gray-500 mt-2">Supports PDF, DOC, DOCX</p>
                 </CardContent>
               </Card>
@@ -202,8 +305,10 @@ const ProfileSetup = () => {
                       <FileText className="w-6 h-6 text-blue-600" />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-gray-800">resume_john_doe.pdf</h3>
-                      <p className="text-sm text-gray-600">Processed • 245 KB</p>
+                      <h3 className="font-semibold text-gray-800">{uploadedFile?.name || 'Resume'}</h3>
+                      <p className="text-sm text-gray-600">
+                        {uploadedFile ? `Processed • ${(uploadedFile.size / 1024).toFixed(0)} KB` : 'Processed'}
+                      </p>
                     </div>
                   </div>
                 </CardContent>

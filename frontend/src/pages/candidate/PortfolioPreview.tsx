@@ -1,47 +1,130 @@
-
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Edit, Eye, Share, User, GraduationCap, Briefcase, Code, Award, Target, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Edit, Eye, Share, User, GraduationCap, Briefcase, Code, Award, Target, CheckCircle, Link, FileText, Calendar, MapPin, Mail, Phone, ExternalLink } from 'lucide-react';
+import axios from 'axios';
+import { toast } from 'sonner';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
+interface PortfolioData {
+  id: number;
+  user: {
+    id: number;
+    username: string;
+    email: string;
+    first_name: string;
+    last_name: string;
+  };
+  work_experiences: Array<{
+    id: number;
+    company_name: string;
+    role_designation: string;
+    start_date: string;
+    end_date: string;
+    is_current: boolean;
+    responsibilities: string;
+    technologies_used: string;
+  }>;
+  projects: Array<{
+    id: number;
+    title: string;
+    description: string;
+    tech_stack: string;
+    role_in_project: string;
+    github_link: string | null;
+    live_link: string | null;
+  }>;
+  certifications: any[];
+  name: string;
+  email: string;
+  phone: string;
+  gender: string;
+  date_of_birth: string;
+  linkedin_profile: string;
+  github_profile: string;
+  portfolio_link: string;
+  resume: string;
+  skills: string;
+  experience: number;
+  current_job_title: string;
+  current_company: string;
+  employment_type_preferences: string;
+  is_actively_looking: boolean;
+  status: string;
+  view_count: number;
+  created_at: string;
+  updated_at: string;
+}
 
 const PortfolioPreview = () => {
   const navigate = useNavigate();
+  const [portfolioData, setPortfolioData] = useState<PortfolioData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [profileData, setProfileData] = useState<any>({});
 
   useEffect(() => {
-    // Load all profile data from localStorage
-    const basicInfo = JSON.parse(localStorage.getItem('candidateBasicInfo') || '{}');
-    const education = JSON.parse(localStorage.getItem('candidateEducation') || '[]');
-    const workExperience = JSON.parse(localStorage.getItem('candidateWorkExperience') || '[]');
-    const projects = JSON.parse(localStorage.getItem('candidateProjects') || '[]');
-    const certifications = JSON.parse(localStorage.getItem('candidateCertifications') || '[]');
-    const jobPreferences = JSON.parse(localStorage.getItem('candidateJobPreferences') || '{}');
+    const fetchPortfolioData = async () => {
+      const token = sessionStorage.getItem('token');
+      if (!token) {
+        toast.error('Please login to continue');
+        navigate('/login');
+        return;
+      }
 
-    setProfileData({
-      basicInfo,
-      education,
-      workExperience,
-      projects,
-      certifications,
-      jobPreferences
-    });
-  }, []);
+      try {
+        const response = await axios.get(`${API_BASE_URL}/api/candidates/portfolio_data/`, {
+          headers: {
+            'Authorization': `Token ${token}`
+          }
+        });
+        setPortfolioData(response.data);
+      } catch (error) {
+        if (axios.isAxiosError(error)) {
+          toast.error(error.response?.data?.message || 'Failed to fetch portfolio data');
+        } else {
+          toast.error('An unexpected error occurred');
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    // Load job preferences from localStorage
+    const jobPreferences = JSON.parse(localStorage.getItem('candidateJobPreferences') || '{}');
+    setProfileData({ jobPreferences });
+
+    fetchPortfolioData();
+  }, [navigate]);
 
   const handleGoToDashboard = () => {
     navigate('/candidate/dashboard');
   };
 
   const calculateCompleteness = () => {
+    if (!portfolioData) return 0;
     let score = 0;
-    if (profileData.basicInfo?.firstName) score += 15;
-    if (profileData.education?.length > 0) score += 20;
-    if (profileData.workExperience?.length > 0) score += 20;
-    if (profileData.projects?.length > 0) score += 25;
-    if (profileData.certifications?.length > 0) score += 10;
-    if (profileData.jobPreferences?.jobTitle) score += 10;
+    if (portfolioData.name) score += 15;
+    if (portfolioData.work_experiences?.length > 0) score += 20;
+    if (portfolioData.projects?.length > 0) score += 25;
+    if (portfolioData.certifications?.length > 0) score += 10;
+    if (portfolioData.current_job_title) score += 10;
+    if (portfolioData.skills) score += 10;
+    if (portfolioData.linkedin_profile || portfolioData.github_profile) score += 10;
     return score;
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   const completeness = calculateCompleteness();
 
@@ -72,12 +155,26 @@ const PortfolioPreview = () => {
             Your professional profile has been created successfully. Here's a preview of how recruiters will see your information.
           </p>
           
-          {/* Completeness Score */}
-          <div className="inline-flex items-center space-x-2 bg-white rounded-full px-6 py-3 shadow-md">
-            <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-              <span className="text-green-600 font-bold text-sm">{completeness}%</span>
+          {/* Profile Stats */}
+          <div className="flex justify-center space-x-4 mb-8">
+            <div className="inline-flex items-center space-x-2 bg-white rounded-full px-6 py-3 shadow-md">
+              <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                <span className="text-green-600 font-bold text-sm">{completeness}%</span>
+              </div>
+              <span className="text-gray-700 font-medium">Profile Completeness</span>
             </div>
-            <span className="text-gray-700 font-medium">Profile Completeness</span>
+            <div className="inline-flex items-center space-x-2 bg-white rounded-full px-6 py-3 shadow-md">
+              <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                <Eye className="w-4 h-4 text-blue-600" />
+              </div>
+              <span className="text-gray-700 font-medium">{portfolioData?.view_count || 0} Profile Views</span>
+            </div>
+            <div className="inline-flex items-center space-x-2 bg-white rounded-full px-6 py-3 shadow-md">
+              <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                <Calendar className="w-4 h-4 text-purple-600" />
+              </div>
+              <span className="text-gray-700 font-medium">Member since {new Date(portfolioData?.created_at || '').toLocaleDateString()}</span>
+            </div>
           </div>
         </div>
 
@@ -93,18 +190,59 @@ const PortfolioPreview = () => {
                   <CardTitle className="text-lg">Personal Information</CardTitle>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="space-y-4">
                 <div>
                   <h3 className="font-semibold text-2xl text-gray-800">
-                    {profileData.basicInfo?.firstName} {profileData.basicInfo?.lastName}
+                    {portfolioData?.name}
                   </h3>
-                  <p className="text-gray-600">{profileData.jobPreferences?.jobTitle || 'Software Developer'}</p>
+                  <p className="text-gray-600">{portfolioData?.current_job_title} at {portfolioData?.current_company}</p>
                 </div>
                 <div className="space-y-2 text-sm">
-                  <p><span className="font-medium">Email:</span> {profileData.basicInfo?.email}</p>
-                  <p><span className="font-medium">Phone:</span> {profileData.basicInfo?.phone}</p>
-                  <p><span className="font-medium">Location:</span> {profileData.basicInfo?.location}</p>
+                  <div className="flex items-center space-x-2">
+                    <Mail className="w-4 h-4 text-gray-500" />
+                    <span>{portfolioData?.email}</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Phone className="w-4 h-4 text-gray-500" />
+                    <span>{portfolioData?.phone}</span>
+                  </div>
+                  {portfolioData?.linkedin_profile && (
+                    <a href={portfolioData.linkedin_profile} target="_blank" rel="noopener noreferrer" className="flex items-center space-x-2 text-blue-600 hover:underline">
+                      <Link className="w-4 h-4" />
+                      <span>LinkedIn Profile</span>
+                    </a>
+                  )}
+                  {portfolioData?.github_profile && (
+                    <a href={portfolioData.github_profile} target="_blank" rel="noopener noreferrer" className="flex items-center space-x-2 text-gray-600 hover:underline">
+                      <Link className="w-4 h-4" />
+                      <span>GitHub Profile</span>
+                    </a>
+                  )}
+                  {portfolioData?.portfolio_link && (
+                    <a href={portfolioData.portfolio_link} target="_blank" rel="noopener noreferrer" className="flex items-center space-x-2 text-purple-600 hover:underline">
+                      <Link className="w-4 h-4" />
+                      <span>Portfolio Website</span>
+                    </a>
+                  )}
+                  {portfolioData?.resume && (
+                    <a href={portfolioData.resume} target="_blank" rel="noopener noreferrer" className="flex items-center space-x-2 text-green-600 hover:underline">
+                      <FileText className="w-4 h-4" />
+                      <span>View Resume</span>
+                    </a>
+                  )}
                 </div>
+                {portfolioData?.skills && (
+                  <div className="pt-2">
+                    <h4 className="font-medium text-sm text-gray-700 mb-2">Skills</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {portfolioData.skills.split(',').map((skill, index) => (
+                        <span key={index} className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
+                          {skill.trim()}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -145,30 +283,8 @@ const PortfolioPreview = () => {
 
           {/* Middle Column */}
           <div className="space-y-6">
-            {/* Education */}
-            {profileData.education?.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center space-x-3">
-                    <GraduationCap className="w-5 h-5 text-green-600" />
-                    <CardTitle className="text-lg">Education</CardTitle>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {profileData.education.map((edu: any, index: number) => (
-                    <div key={index} className="border-l-2 border-green-200 pl-4">
-                      <h4 className="font-semibold">{edu.degree} in {edu.fieldOfStudy}</h4>
-                      <p className="text-blue-600 font-medium">{edu.institution}</p>
-                      <p className="text-sm text-gray-600">{edu.startYear} - {edu.endYear}</p>
-                      {edu.grade && <p className="text-sm text-gray-600">Grade: {edu.grade}</p>}
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            )}
-
             {/* Work Experience */}
-            {profileData.workExperience?.length > 0 && (
+            {portfolioData?.work_experiences?.length > 0 && (
               <Card>
                 <CardHeader>
                   <div className="flex items-center space-x-3">
@@ -177,15 +293,24 @@ const PortfolioPreview = () => {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {profileData.workExperience.map((exp: any, index: number) => (
-                    <div key={index} className="border-l-2 border-blue-200 pl-4">
-                      <h4 className="font-semibold">{exp.position}</h4>
-                      <p className="text-blue-600 font-medium">{exp.company}</p>
+                  {portfolioData.work_experiences.map((exp) => (
+                    <div key={exp.id} className="border-l-2 border-blue-200 pl-4">
+                      <h4 className="font-semibold">{exp.role_designation}</h4>
+                      <p className="text-blue-600 font-medium">{exp.company_name}</p>
                       <p className="text-sm text-gray-600">
-                        {exp.startDate} - {exp.isCurrentJob ? 'Present' : exp.endDate}
+                        {new Date(exp.start_date).toLocaleDateString()} - {exp.is_current ? 'Present' : new Date(exp.end_date).toLocaleDateString()}
                       </p>
-                      {exp.location && <p className="text-sm text-gray-600">{exp.location}</p>}
-                      {exp.description && <p className="text-sm mt-2">{exp.description}</p>}
+                      {exp.responsibilities && (
+                        <div className="mt-2">
+                          <p className="text-sm font-medium text-gray-700 mb-1">Responsibilities:</p>
+                          <p className="text-sm text-gray-600 whitespace-pre-line">{exp.responsibilities}</p>
+                        </div>
+                      )}
+                      {exp.technologies_used && (
+                        <p className="text-sm mt-2">
+                          <span className="font-medium">Technologies:</span> {exp.technologies_used}
+                        </p>
+                      )}
                     </div>
                   ))}
                 </CardContent>
@@ -196,7 +321,7 @@ const PortfolioPreview = () => {
           {/* Right Column */}
           <div className="space-y-6">
             {/* Projects */}
-            {profileData.projects?.length > 0 && (
+            {portfolioData?.projects?.length > 0 && (
               <Card>
                 <CardHeader>
                   <div className="flex items-center space-x-3">
@@ -205,40 +330,28 @@ const PortfolioPreview = () => {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {profileData.projects.map((project: any, index: number) => (
-                    <div key={index} className="border-l-2 border-purple-200 pl-4">
+                  {portfolioData.projects.map((project) => (
+                    <div key={project.id} className="border-l-2 border-purple-200 pl-4">
                       <h4 className="font-semibold">{project.title}</h4>
                       <p className="text-sm text-gray-600 mb-2">{project.description}</p>
-                      <p className="text-sm"><span className="font-medium">Tech:</span> {project.technologies}</p>
-                      {project.projectUrl && (
-                        <a href={project.projectUrl} className="text-blue-600 text-sm hover:underline">
-                          View Project
-                        </a>
+                      <p className="text-sm"><span className="font-medium">Tech Stack:</span> {project.tech_stack}</p>
+                      {project.role_in_project && project.role_in_project !== 'Not specified' && (
+                        <p className="text-sm"><span className="font-medium">Role:</span> {project.role_in_project}</p>
                       )}
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Certifications */}
-            {profileData.certifications?.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center space-x-3">
-                    <Award className="w-5 h-5 text-yellow-600" />
-                    <CardTitle className="text-lg">Certifications</CardTitle>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {profileData.certifications.map((cert: any, index: number) => (
-                    <div key={index} className="border-l-2 border-yellow-200 pl-4">
-                      <h4 className="font-semibold">{cert.name}</h4>
-                      <p className="text-yellow-600 font-medium">{cert.issuingOrganization}</p>
-                      <p className="text-sm text-gray-600">Issued: {cert.issueDate}</p>
-                      {cert.credentialId && (
-                        <p className="text-sm text-gray-600">ID: {cert.credentialId}</p>
-                      )}
+                      <div className="flex space-x-4 mt-2">
+                        {project.github_link && (
+                          <a href={project.github_link} target="_blank" rel="noopener noreferrer" className="text-sm text-gray-600 hover:text-gray-900 flex items-center">
+                            <ExternalLink className="w-3 h-3 mr-1" />
+                            GitHub
+                          </a>
+                        )}
+                        {project.live_link && (
+                          <a href={project.live_link} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:text-blue-800 flex items-center">
+                            <ExternalLink className="w-3 h-3 mr-1" />
+                            Live Demo
+                          </a>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </CardContent>

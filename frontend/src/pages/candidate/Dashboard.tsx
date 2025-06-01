@@ -86,19 +86,36 @@ interface CandidateProfile {
   updated_at: string;
 }
 
+interface DashboardOverview {
+  profile_completeness_percentage: number;
+  view_count: number;
+  skill_summary: {
+    skills: string[];
+    total_skills: number;
+  };
+  editable_sections_links: {
+    education: string;
+    work_experience: string;
+    projects: string;
+    certifications: string;
+  };
+}
+
 const CandidateDashboard = () => {
   const navigate = useNavigate();
   const [profileData, setProfileData] = useState<CandidateProfile | null>(null);
+  const [dashboardOverview, setDashboardOverview] = useState<DashboardOverview | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [stats, setStats] = useState({
     profileViews: 0,
     recruiterContacts: 0,
     jobMatches: 0,
-    profileCompleteness: 0
+    profileCompleteness: 0,
+    totalSkills: 0
   });
 
   useEffect(() => {
-    const fetchProfileData = async () => {
+    const fetchData = async () => {
       const token = sessionStorage.getItem('token');
       if (!token) {
         toast.error('Please login to continue');
@@ -107,28 +124,29 @@ const CandidateDashboard = () => {
       }
 
       try {
-        const response = await axios.get(`${API_BASE_URL}/api/candidates/me/`, {
+        // Fetch profile data
+        const profileResponse = await axios.get(`${API_BASE_URL}/api/candidates/me/`, {
           headers: {
             'Authorization': `Token ${token}`
           }
         });
 
-        setProfileData(response.data);
-        
-        // Calculate profile completeness
-        let score = 0;
-        const data = response.data;
-        if (data.name) score += 15;
-        if (data.work_experiences?.length > 0) score += 20;
-        if (data.projects?.length > 0) score += 25;
-        if (data.certifications?.length > 0) score += 10;
-        if (data.skills) score += 15;
-        if (data.desired_roles) score += 15;
+        // Fetch dashboard overview
+        const overviewResponse = await axios.get(`${API_BASE_URL}/api/candidates/dashboard_overview/`, {
+          headers: {
+            'Authorization': `Token ${token}`
+          }
+        });
 
+        setProfileData(profileResponse.data);
+        setDashboardOverview(overviewResponse.data);
+        
+        // Update stats with overview data
         setStats(prev => ({
           ...prev,
-          profileViews: data.view_count || 0,
-          profileCompleteness: score
+          profileViews: overviewResponse.data.view_count || 0,
+          profileCompleteness: Math.round(overviewResponse.data.profile_completeness_percentage),
+          totalSkills: overviewResponse.data.skill_summary.total_skills
         }));
 
       } catch (error) {
@@ -138,14 +156,14 @@ const CandidateDashboard = () => {
           toast.error('Session expired. Please login again.');
           navigate('/login');
         } else {
-          toast.error('Failed to load profile data');
+          toast.error('Failed to load dashboard data');
         }
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchProfileData();
+    fetchData();
   }, [navigate]);
 
   const handleDownloadResume = () => {
@@ -180,21 +198,24 @@ const CandidateDashboard = () => {
       icon: Briefcase,
       route: '/candidate/work-experience',
       completed: profileData?.work_experiences?.length > 0,
-      color: 'green'
+      color: 'green',
+      apiEndpoint: dashboardOverview?.editable_sections_links.work_experience
     },
     {
       title: 'Projects',
       icon: Code,
       route: '/candidate/projects',
       completed: profileData?.projects?.length > 0,
-      color: 'purple'
+      color: 'purple',
+      apiEndpoint: dashboardOverview?.editable_sections_links.projects
     },
     {
       title: 'Certifications',
       icon: Award,
       route: '/candidate/certifications',
       completed: profileData?.certifications?.length > 0,
-      color: 'yellow'
+      color: 'yellow',
+      apiEndpoint: dashboardOverview?.editable_sections_links.certifications
     },
     {
       title: 'Job Preferences',
@@ -260,7 +281,7 @@ const CandidateDashboard = () => {
 
       <div className="container mx-auto px-6 py-8">
         {/* Stats Cards */}
-        <div className="grid md:grid-cols-4 gap-6 mb-8">
+        <div className="grid md:grid-cols-5 gap-6 mb-8">
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
@@ -298,6 +319,20 @@ const CandidateDashboard = () => {
                 </div>
                 <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
                   <Code className="w-6 h-6 text-purple-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Skills</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats.totalSkills}</p>
+                </div>
+                <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center">
+                  <TrendingUp className="w-6 h-6 text-indigo-600" />
                 </div>
               </div>
             </CardContent>
@@ -348,6 +383,11 @@ const CandidateDashboard = () => {
                                 <p className="text-sm text-gray-500">
                                   {section.completed ? 'Completed' : 'Incomplete'}
                                 </p>
+                                {section.apiEndpoint && (
+                                  <p className="text-xs text-gray-400 mt-1">
+                                    API: {section.apiEndpoint}
+                                  </p>
+                                )}
                               </div>
                             </div>
                             <div className={`w-6 h-6 rounded-full ${
@@ -487,20 +527,23 @@ const CandidateDashboard = () => {
                   </div>
                 </div>
 
-                {/* Skills */}
-                {profileData?.skills && (
+                {/* Skills from Dashboard Overview */}
+                {dashboardOverview?.skill_summary.skills && (
                   <div className="mt-4">
-                    <h4 className="text-sm font-medium text-gray-600 mb-2">Skills</h4>
+                    <h4 className="text-sm font-medium text-gray-600 mb-2">Skills Overview</h4>
                     <div className="flex flex-wrap gap-2">
-                      {profileData.skills.split(',').map((skill, index) => (
+                      {dashboardOverview.skill_summary.skills.map((skill, index) => (
                         <span 
                           key={index}
-                          className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs"
+                          className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs"
                         >
                           {skill.trim()}
                         </span>
                       ))}
                     </div>
+                    <p className="text-xs text-gray-500 mt-2">
+                      Total Skills: {dashboardOverview.skill_summary.total_skills}
+                    </p>
                   </div>
                 )}
               </CardContent>

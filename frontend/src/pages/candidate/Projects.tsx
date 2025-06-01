@@ -1,5 +1,4 @@
-
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,6 +7,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Code, Plus, Trash2, ExternalLink } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
+import axios from 'axios';
+import { toast } from 'sonner';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 interface Project {
   id: string;
@@ -18,40 +21,115 @@ interface Project {
   endDate: string;
   projectUrl: string;
   githubUrl: string;
+  roleInProject?: string;
 }
 
 const Projects = () => {
   const navigate = useNavigate();
-  const [projects, setProjects] = useState<Project[]>([
-    {
-      id: '1',
-      title: '',
-      description: '',
-      technologies: '',
-      startDate: '',
-      endDate: '',
-      projectUrl: '',
-      githubUrl: ''
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const fetchProjects = async () => {
+    const token = sessionStorage.getItem('token');
+    if (!token) {
+      toast.error('Please login to continue');
+      navigate('/login');
+      return;
     }
-  ]);
+
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/projects/`, {
+        headers: {
+          'Authorization': `Token ${token}`
+        }
+      });
+
+      const transformedProjects = response.data.map((proj: any) => ({
+        id: proj.id.toString(),
+        title: proj.title,
+        description: proj.description,
+        technologies: proj.tech_stack || '',
+        startDate: '', // API doesn't provide these fields
+        endDate: '',
+        projectUrl: proj.live_link || '',
+        githubUrl: proj.github_link || '',
+        roleInProject: proj.role_in_project || ''
+      }));
+
+      if (transformedProjects.length === 0) {
+        // Initialize with empty project if no data
+        setProjects([{
+          id: 'new',
+          title: '',
+          description: '',
+          technologies: '',
+          startDate: '',
+          endDate: '',
+          projectUrl: '',
+          githubUrl: '',
+          roleInProject: ''
+        }]);
+      } else {
+        setProjects(transformedProjects);
+      }
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        toast.error(error.response?.data?.message || 'Failed to fetch projects');
+      } else {
+        toast.error('An unexpected error occurred');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchProjects();
+  }, []);
 
   const addProject = () => {
     const newProject: Project = {
-      id: Date.now().toString(),
+      id: 'new',
       title: '',
       description: '',
       technologies: '',
       startDate: '',
       endDate: '',
       projectUrl: '',
-      githubUrl: ''
+      githubUrl: '',
+      roleInProject: ''
     };
     setProjects([...projects, newProject]);
   };
 
-  const removeProject = (id: string) => {
-    if (projects.length > 1) {
+  const removeProject = async (id: string) => {
+    if (id === 'new') {
       setProjects(projects.filter(proj => proj.id !== id));
+      return;
+    }
+
+    const token = sessionStorage.getItem('token');
+    if (!token) {
+      toast.error('Please login to continue');
+      navigate('/login');
+      return;
+    }
+
+    try {
+      await axios.delete(`${API_BASE_URL}/api/projects/${id}/`, {
+        headers: {
+          'Authorization': `Token ${token}`
+        }
+      });
+      setProjects(projects.filter(proj => proj.id !== id));
+      toast.success('Project removed successfully');
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        toast.error(error.response?.data?.message || 'Failed to remove project');
+      } else {
+        toast.error('An unexpected error occurred');
+      }
     }
   };
 
@@ -61,15 +139,76 @@ const Projects = () => {
     ));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    localStorage.setItem('candidateProjects', JSON.stringify(projects));
-    navigate('/candidate/certifications');
+    setIsSubmitting(true);
+
+    const token = sessionStorage.getItem('token');
+    if (!token) {
+      toast.error('Please login to continue');
+      navigate('/login');
+      return;
+    }
+
+    try {
+      // Handle both new and existing projects
+      const promises = projects.map(async (project) => {
+        const projectData = {
+          title: project.title,
+          description: project.description,
+          tech_stack: project.technologies,
+          role_in_project: project.roleInProject || 'Not specified',
+          github_link: project.githubUrl || null,
+          live_link: project.projectUrl || null
+        };
+
+        if (project.id === 'new') {
+          // Create new project
+          return axios.post(`${API_BASE_URL}/api/projects/`, projectData, {
+            headers: {
+              'Authorization': `Token ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+        } else {
+          // Update existing project
+          return axios.patch(`${API_BASE_URL}/api/projects/${project.id}/`, projectData, {
+            headers: {
+              'Authorization': `Token ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+        }
+      });
+
+      await Promise.all(promises);
+      toast.success('Projects updated successfully');
+      navigate('/candidate/certifications');
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        toast.error(error.response?.data?.message || 'Failed to update projects');
+      } else {
+        toast.error('An unexpected error occurred');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const currentStep = 5;
   const totalSteps = 7;
   const progressValue = (currentStep / totalSteps) * 100;
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
@@ -114,17 +253,15 @@ const Projects = () => {
                       <CardDescription>Showcase your technical projects</CardDescription>
                     </div>
                   </div>
-                  {projects.length > 1 && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeProject(project.id)}
-                      className="text-red-600 hover:text-red-700"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  )}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeProject(project.id)}
+                    className="text-red-600 hover:text-red-700"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -151,34 +288,24 @@ const Projects = () => {
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor={`technologies-${project.id}`}>Technologies Used *</Label>
-                  <Input
-                    id={`technologies-${project.id}`}
-                    placeholder="React, Node.js, MongoDB, AWS, etc."
-                    value={project.technologies}
-                    onChange={(e) => updateProject(project.id, 'technologies', e.target.value)}
-                    required
-                  />
-                </div>
-
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor={`startDate-${project.id}`}>Start Date</Label>
+                    <Label htmlFor={`technologies-${project.id}`}>Technologies Used *</Label>
                     <Input
-                      id={`startDate-${project.id}`}
-                      type="date"
-                      value={project.startDate}
-                      onChange={(e) => updateProject(project.id, 'startDate', e.target.value)}
+                      id={`technologies-${project.id}`}
+                      placeholder="React, Node.js, MongoDB, AWS, etc."
+                      value={project.technologies}
+                      onChange={(e) => updateProject(project.id, 'technologies', e.target.value)}
+                      required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor={`endDate-${project.id}`}>End Date</Label>
+                    <Label htmlFor={`role-${project.id}`}>Your Role</Label>
                     <Input
-                      id={`endDate-${project.id}`}
-                      type="date"
-                      value={project.endDate}
-                      onChange={(e) => updateProject(project.id, 'endDate', e.target.value)}
+                      id={`role-${project.id}`}
+                      placeholder="e.g., Lead Developer, Full Stack Developer"
+                      value={project.roleInProject}
+                      onChange={(e) => updateProject(project.id, 'roleInProject', e.target.value)}
                     />
                   </div>
                 </div>
@@ -238,9 +365,22 @@ const Projects = () => {
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back
             </Button>
-            <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
-              Continue
-              <ArrowRight className="w-4 h-4 ml-2" />
+            <Button 
+              type="submit" 
+              className="bg-blue-600 hover:bg-blue-700"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                  Saving...
+                </>
+              ) : (
+                <>
+                  Continue
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </>
+              )}
             </Button>
           </div>
         </form>
