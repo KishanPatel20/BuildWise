@@ -1,16 +1,22 @@
-
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, User } from 'lucide-react';
+import { ArrowLeft, ArrowRight, User, Linkedin, Github, Globe } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
+import { useCandidate } from '@/context/CandidateContext';
+import axios from 'axios';
+import { toast } from 'sonner';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 const BasicInfo = () => {
   const navigate = useNavigate();
+  const { candidateData, isLoading, fetchCandidateData } = useCandidate();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [form, setForm] = useState({
     firstName: '',
     lastName: '',
@@ -18,19 +24,104 @@ const BasicInfo = () => {
     phone: '',
     location: '',
     gender: '',
-    dateOfBirth: ''
+    dateOfBirth: '',
+    linkedinProfile: '',
+    githubProfile: '',
+    portfolioLink: '',
+    currentJobTitle: '',
+    currentCompany: '',
+    skills: '',
+    experience: ''
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (candidateData) {
+      setForm({
+        firstName: candidateData.first_name || '',
+        lastName: candidateData.last_name || '',
+        email: candidateData.email || '',
+        phone: candidateData.phone || '',
+        location: candidateData.location || '',
+        gender: candidateData.gender || '',
+        dateOfBirth: candidateData.date_of_birth || '',
+        linkedinProfile: candidateData.linkedin_profile || '',
+        githubProfile: candidateData.github_profile || '',
+        portfolioLink: candidateData.portfolio_link || '',
+        currentJobTitle: candidateData.current_job_title || '',
+        currentCompany: candidateData.current_company || '',
+        skills: candidateData.skills || '',
+        experience: candidateData.experience?.toString() || ''
+      });
+    }
+  }, [candidateData]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Save to local storage or context
-    localStorage.setItem('candidateBasicInfo', JSON.stringify(form));
-    navigate('/candidate/education');
+    setIsSubmitting(true);
+
+    const token = sessionStorage.getItem('token');
+    if (!token) {
+      toast.error('Please login to continue');
+      navigate('/login');
+      return;
+    }
+
+    try {
+      const response = await axios.patch(
+        `${API_BASE_URL}/api/candidates/me/`,
+        {
+          name: `${form.firstName} ${form.lastName}`,
+          email: form.email,
+          phone: form.phone,
+          location: form.location,
+          gender: form.gender,
+          date_of_birth: form.dateOfBirth,
+          linkedin_profile: form.linkedinProfile,
+          github_profile: form.githubProfile,
+          portfolio_link: form.portfolioLink,
+          current_job_title: form.currentJobTitle,
+          current_company: form.currentCompany,
+          skills: form.skills,
+          experience: parseInt(form.experience) || 0
+        },
+        {
+          headers: {
+            'Authorization': `Token ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (response.data) {
+        toast.success('Profile updated successfully!');
+        await fetchCandidateData(); // Refresh the candidate data
+        navigate('/candidate/education');
+      }
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        toast.error(error.response?.data?.message || 'Failed to update profile');
+      } else {
+        toast.error('An unexpected error occurred');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const currentStep = 2;
   const totalSteps = 7;
   const progressValue = (currentStep / totalSteps) * 100;
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
@@ -130,6 +221,50 @@ const BasicInfo = () => {
                 />
               </div>
 
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="currentJobTitle">Current Job Title</Label>
+                  <Input
+                    id="currentJobTitle"
+                    placeholder="e.g., Software Engineer"
+                    value={form.currentJobTitle}
+                    onChange={(e) => setForm({ ...form, currentJobTitle: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="currentCompany">Current Company</Label>
+                  <Input
+                    id="currentCompany"
+                    placeholder="e.g., Tech Corp"
+                    value={form.currentCompany}
+                    onChange={(e) => setForm({ ...form, currentCompany: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="skills">Skills</Label>
+                  <Input
+                    id="skills"
+                    placeholder="e.g., Python, Django, React"
+                    value={form.skills}
+                    onChange={(e) => setForm({ ...form, skills: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="experience">Years of Experience</Label>
+                  <Input
+                    id="experience"
+                    type="number"
+                    min="0"
+                    placeholder="e.g., 5"
+                    value={form.experience}
+                    onChange={(e) => setForm({ ...form, experience: e.target.value })}
+                  />
+                </div>
+              </div>
+
               <div className="space-y-3">
                 <Label>Gender</Label>
                 <RadioGroup value={form.gender} onValueChange={(value) => setForm({ ...form, gender: value })}>
@@ -162,6 +297,53 @@ const BasicInfo = () => {
                 />
               </div>
 
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-gray-800">Professional Links</h3>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="linkedinProfile" className="flex items-center space-x-2">
+                      <Linkedin className="w-4 h-4 text-blue-600" />
+                      <span>LinkedIn Profile</span>
+                    </Label>
+                    <Input
+                      id="linkedinProfile"
+                      type="url"
+                      placeholder="https://linkedin.com/in/yourprofile"
+                      value={form.linkedinProfile}
+                      onChange={(e) => setForm({ ...form, linkedinProfile: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="githubProfile" className="flex items-center space-x-2">
+                      <Github className="w-4 h-4 text-gray-800" />
+                      <span>GitHub Profile</span>
+                    </Label>
+                    <Input
+                      id="githubProfile"
+                      type="url"
+                      placeholder="https://github.com/yourusername"
+                      value={form.githubProfile}
+                      onChange={(e) => setForm({ ...form, githubProfile: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="portfolioLink" className="flex items-center space-x-2">
+                      <Globe className="w-4 h-4 text-green-600" />
+                      <span>Portfolio Website</span>
+                    </Label>
+                    <Input
+                      id="portfolioLink"
+                      type="url"
+                      placeholder="https://yourportfolio.com"
+                      value={form.portfolioLink}
+                      onChange={(e) => setForm({ ...form, portfolioLink: e.target.value })}
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div className="flex justify-between pt-6">
                 <Button
                   type="button"
@@ -171,9 +353,22 @@ const BasicInfo = () => {
                   <ArrowLeft className="w-4 h-4 mr-2" />
                   Back
                 </Button>
-                <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
-                  Continue
-                  <ArrowRight className="w-4 h-4 ml-2" />
+                <Button 
+                  type="submit" 
+                  className="bg-blue-600 hover:bg-blue-700"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                      Updating...
+                    </>
+                  ) : (
+                    <>
+                      Continue
+                      <ArrowRight className="w-4 h-4 ml-2" />
+                    </>
+                  )}
                 </Button>
               </div>
             </form>

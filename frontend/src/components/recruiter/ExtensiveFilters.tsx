@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -12,65 +11,248 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Textarea } from '@/components/ui/textarea';
-import { Filter, X } from 'lucide-react';
+import { Filter, X, Upload } from 'lucide-react';
+import { RecruiterSearchFilters, GroqProcessedFilters } from '@/types/recruiter';
+import { processFiltersWithGroq } from '@/services/groqService';
+import { toast } from 'sonner';
+import { Progress } from '@/components/ui/progress';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
+import { format } from 'date-fns';
 
 interface ExtensiveFiltersProps {
-  onFiltersApply: (filters: any) => void;
+  onFiltersApply: (filters: RecruiterSearchFilters) => void;
+}
+
+// Helper type for nested paths
+type NestedKeyOf<T> = {
+  [K in keyof T]: T[K] extends object
+    ? `${K & string}.${NestedKeyOf<T[K]> & string}`
+    : K;
+}[keyof T];
+
+// Helper type for getting nested value type
+type NestedValueType<T, P extends string> = P extends `${infer K}.${infer R}`
+  ? K extends keyof T
+    ? NestedValueType<T[K], R>
+    : never
+  : P extends keyof T
+  ? T[P]
+  : never;
+
+// Simplified type for filter updates
+type FilterUpdate<T extends keyof RecruiterSearchFilters> = {
+  category: T;
+  subCategory: keyof RecruiterSearchFilters[T];
+  value: unknown;
+};
+
+// Add types for request/response logging
+interface FilterRequestLog {
+  id: string;
+  timestamp: Date;
+  request: {
+    filters: RecruiterSearchFilters;
+    jobDescription?: string;
+  };
+  response?: GroqProcessedFilters;
+  status: 'pending' | 'processing' | 'completed' | 'error';
+  error?: string;
+  processingSteps: {
+    step: string;
+    status: 'pending' | 'processing' | 'completed' | 'error';
+    timestamp: Date;
+  }[];
 }
 
 const ExtensiveFilters = ({ onFiltersApply }: ExtensiveFiltersProps) => {
   const [open, setOpen] = useState(false);
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
+  const [jobDescription, setJobDescription] = useState('');
   
-  const [filters, setFilters] = useState({
-    // Role & Experience
-    jobTitles: [] as string[],
-    customTitle: '',
-    seniorityLevel: [] as string[],
-    overallExperience: [0, 20],
-    aiMlExperience: [0, 15],
-    teamManagement: false,
-    teamSize: [0, 50],
-    projectLeadership: false,
-    projectsLed: [0, 20],
-    
-    // Technical Skills
-    programmingLanguages: [] as string[],
-    mlFrameworks: [] as string[],
-    deepLearningSpecifics: [] as string[],
-    generativeAI: [] as string[],
-    dataScienceTools: [] as string[],
-    cloudPlatforms: [] as string[],
-    bigDataTech: [] as string[],
-    databases: [] as string[],
-    mlopsDevops: [] as string[],
-    
-    // Non-Technical Skills
-    communicationSkills: [] as string[],
-    projectManagement: [] as string[],
-    analyticalSkills: false,
-    crossFunctionalTeams: false,
-    
-    // Background
-    employmentStatus: [] as string[],
-    availability: '',
-    noticePeriod: [0, 90],
-    workAuthorization: [] as string[],
-    location: { country: '', state: '', city: '' },
-    workModel: '',
-    willingToRelocate: false,
-    industryExperience: [] as string[],
-    companySize: [] as string[],
-    educationLevel: [] as string[],
-    fieldOfStudy: [] as string[],
-    certifications: [] as string[],
-    languages: [] as string[],
-    
-    // Search Refinement
-    matchScoreRange: [70, 100],
-    salaryRange: [50000, 200000],
-    excludeContacted: false
+  const [filters, setFilters] = useState<RecruiterSearchFilters>({
+    location: {
+      country: '',
+      state: '',
+      city: '',
+      remote: false,
+      hybrid: false,
+      onsite: false,
+      willingToRelocate: false
+    },
+    experience: {
+      overallExperience: { min: 0, max: 20 },
+      domainExperience: { min: 0, max: 15 },
+      currentRoleExperience: { min: 0, max: 10 },
+      averageTenure: { min: 0, max: 5 }
+    },
+    technicalSkills: {
+      programmingLanguages: [],
+      frameworks: [],
+      databases: [],
+      cloudPlatforms: [],
+      devOpsTools: [],
+      aiMlTools: [],
+      otherTechnologies: []
+    },
+    domain: {
+      primaryDomain: [],
+      subDomains: [],
+      industryExperience: [],
+      preferredIndustries: []
+    },
+    company: {
+      currentCompany: {
+        type: [],
+        size: { min: 0, max: 10000 }
+      },
+      pastCompanies: {
+        minExperience: 0,
+        preferredCompanies: [],
+        excludeCompanies: []
+      }
+    },
+    education: {
+      degree: [],
+      fieldOfStudy: [],
+      minimumEducation: '',
+      certifications: [],
+      preferredInstitutions: []
+    },
+    role: {
+      jobTitle: [],
+      seniorityLevel: [],
+      roleType: [],
+      department: [],
+      reportingTo: [],
+      teamSize: { min: 0, max: 100 }
+    },
+    compensation: {
+      salary: { min: 50000, max: 200000, currency: 'USD' },
+      equity: false,
+      bonus: { min: 0, max: 50000 },
+      benefits: []
+    },
+    availability: {
+      noticePeriod: { min: 0, max: 90 },
+      startDate: '',
+      availability: '',
+      timezone: []
+    },
+    softSkills: {
+      communication: [],
+      leadership: [],
+      problemSolving: [],
+      teamwork: [],
+      otherSkills: []
+    },
+    projects: {
+      projectTypes: [],
+      projectScale: [],
+      teamSize: { min: 0, max: 50 },
+      technologies: []
+    },
+    preferences: {
+      matchScore: { min: 70, max: 100 },
+      excludeContacted: false,
+      excludeRejected: false,
+      excludeShortlisted: false,
+      activeInLastDays: 30
+    }
   });
+
+  // Helper function to handle nested state updates
+  const updateNestedState = <T extends keyof RecruiterSearchFilters>(
+    category: T,
+    subCategory: keyof RecruiterSearchFilters[T],
+    value: unknown
+  ) => {
+    setFilters(prev => {
+      const newState = { ...prev };
+      const categoryState = newState[category] as { [key: string]: unknown };
+      categoryState[subCategory as string] = value;
+      return newState;
+    });
+  };
+
+  // Helper function to handle range updates (min/max objects)
+  const updateRangeValue = <T extends keyof RecruiterSearchFilters>(
+    category: T,
+    subCategory: keyof RecruiterSearchFilters[T],
+    value: [number, number]
+  ) => {
+    setFilters(prev => {
+      const newState = { ...prev };
+      const categoryState = newState[category] as { [key: string]: unknown };
+      const rangeState = categoryState[subCategory as string] as { min: number; max: number };
+      rangeState.min = value[0];
+      rangeState.max = value[1];
+      return newState;
+    });
+  };
+
+  // Helper function to handle array updates
+  const handleArrayToggle = <T extends keyof RecruiterSearchFilters>(
+    category: T,
+    subCategory: keyof RecruiterSearchFilters[T],
+    item: string
+  ) => {
+    setFilters(prev => {
+      const newState = { ...prev };
+      const categoryState = newState[category] as { [key: string]: unknown };
+      const currentArray = categoryState[subCategory as string] as string[];
+      categoryState[subCategory as string] = currentArray.includes(item)
+        ? currentArray.filter(i => i !== item)
+        : [...currentArray, item];
+      return newState;
+    });
+  };
+
+  // Helper function to handle boolean updates
+  const handleBooleanToggle = <T extends keyof RecruiterSearchFilters>(
+    category: T,
+    subCategory: keyof RecruiterSearchFilters[T],
+    value: boolean
+  ) => {
+    setFilters(prev => {
+      const newState = { ...prev };
+      const categoryState = newState[category] as { [key: string]: unknown };
+      categoryState[subCategory as string] = value;
+      return newState;
+    });
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target?.result as string;
+        setJobDescription(content);
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  const applyFilters = () => {
+    try {
+      // Create a summary of applied filters
+      const appliedFilters = [];
+      if (filters.role.jobTitle.length > 0) appliedFilters.push(`${filters.role.jobTitle.length} Job Titles`);
+      if (filters.technicalSkills.programmingLanguages.length > 0) appliedFilters.push(`${filters.technicalSkills.programmingLanguages.length} Languages`);
+      if (filters.experience.overallExperience.min > 0 || filters.experience.overallExperience.max < 20) appliedFilters.push('Experience Range');
+      if (filters.domain.industryExperience.length > 0) appliedFilters.push(`${filters.domain.industryExperience.length} Industries`);
+
+      setActiveFilters(appliedFilters);
+      onFiltersApply(filters);
+      
+      setOpen(false);
+      toast.success('Filters applied successfully');
+    } catch (error) {
+      console.error('Error applying filters:', error);
+      toast.error('Failed to apply filters. Please try again.');
+    }
+  };
 
   const jobTitles = [
     'Machine Learning Engineer', 'Data Scientist', 'AI Researcher', 'NLP Specialist',
@@ -122,72 +304,6 @@ const ExtensiveFilters = ({ onFiltersApply }: ExtensiveFiltersProps) => {
     'Cybersecurity', 'Telecommunications', 'Media & Entertainment', 'Government', 'Retail'
   ];
 
-  const handleMultiSelectToggle = (category: keyof typeof filters, item: string) => {
-    setFilters(prev => ({
-      ...prev,
-      [category]: (prev[category] as string[]).includes(item)
-        ? (prev[category] as string[]).filter((i: string) => i !== item)
-        : [...(prev[category] as string[]), item]
-    }));
-  };
-
-  const applyFilters = () => {
-    const appliedFilters = [];
-    if (filters.jobTitles.length > 0) appliedFilters.push(`${filters.jobTitles.length} Job Titles`);
-    if (filters.programmingLanguages.length > 0) appliedFilters.push(`${filters.programmingLanguages.length} Languages`);
-    if (filters.mlFrameworks.length > 0) appliedFilters.push(`${filters.mlFrameworks.length} ML Frameworks`);
-    if (filters.overallExperience[0] > 0 || filters.overallExperience[1] < 20) appliedFilters.push('Experience Range');
-    if (filters.industryExperience.length > 0) appliedFilters.push(`${filters.industryExperience.length} Industries`);
-
-    setActiveFilters(appliedFilters);
-    onFiltersApply(filters);
-    setOpen(false);
-  };
-
-  const clearFilters = () => {
-    setFilters({
-      jobTitles: [],
-      customTitle: '',
-      seniorityLevel: [],
-      overallExperience: [0, 20],
-      aiMlExperience: [0, 15],
-      teamManagement: false,
-      teamSize: [0, 50],
-      projectLeadership: false,
-      projectsLed: [0, 20],
-      programmingLanguages: [],
-      mlFrameworks: [],
-      deepLearningSpecifics: [],
-      generativeAI: [],
-      dataScienceTools: [],
-      cloudPlatforms: [],
-      bigDataTech: [],
-      databases: [],
-      mlopsDevops: [],
-      communicationSkills: [],
-      projectManagement: [],
-      analyticalSkills: false,
-      crossFunctionalTeams: false,
-      employmentStatus: [],
-      availability: '',
-      noticePeriod: [0, 90],
-      workAuthorization: [],
-      location: { country: '', state: '', city: '' },
-      workModel: '',
-      willingToRelocate: false,
-      industryExperience: [],
-      companySize: [],
-      educationLevel: [],
-      fieldOfStudy: [],
-      certifications: [],
-      languages: [],
-      matchScoreRange: [70, 100],
-      salaryRange: [50000, 200000],
-      excludeContacted: false
-    });
-    setActiveFilters([]);
-  };
-
   return (
     <>
       <Dialog open={open} onOpenChange={setOpen}>
@@ -207,6 +323,39 @@ const ExtensiveFilters = ({ onFiltersApply }: ExtensiveFiltersProps) => {
             <DialogTitle className="text-xl font-semibold">Extensive AI-Powered Filters</DialogTitle>
           </DialogHeader>
           
+          {/* Job Description Upload */}
+          <div className="mb-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">Upload Job Description</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center space-x-4">
+                  <Input
+                    type="file"
+                    accept=".txt,.doc,.docx,.pdf"
+                    onChange={handleFileUpload}
+                    className="flex-1"
+                  />
+                  {jobDescription && (
+                    <Button variant="outline" size="sm" onClick={() => setJobDescription('')}>
+                      <X className="w-4 h-4 mr-2" />
+                      Clear
+                    </Button>
+                  )}
+                </div>
+                {jobDescription && (
+                  <Textarea
+                    value={jobDescription}
+                    onChange={(e) => setJobDescription(e.target.value)}
+                    placeholder="Or paste job description here..."
+                    className="mt-4 h-32"
+                  />
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
           <Tabs defaultValue="role-experience" className="w-full">
             <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="role-experience">Role & Experience</TabsTrigger>
@@ -228,8 +377,14 @@ const ExtensiveFilters = ({ onFiltersApply }: ExtensiveFiltersProps) => {
                         <div key={title} className="flex items-center space-x-2">
                           <Checkbox
                             id={`job-${title}`}
-                            checked={filters.jobTitles.includes(title)}
-                            onCheckedChange={() => handleMultiSelectToggle('jobTitles', title)}
+                            checked={filters.role.jobTitle.includes(title)}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                handleArrayToggle('role', 'jobTitle', title);
+                              } else {
+                                handleArrayToggle('role', 'jobTitle', title);
+                              }
+                            }}
                           />
                           <Label htmlFor={`job-${title}`} className="text-xs cursor-pointer">
                             {title}
@@ -237,11 +392,6 @@ const ExtensiveFilters = ({ onFiltersApply }: ExtensiveFiltersProps) => {
                         </div>
                       ))}
                     </div>
-                    <Input
-                      placeholder="Custom job title"
-                      value={filters.customTitle}
-                      onChange={(e) => setFilters(prev => ({ ...prev, customTitle: e.target.value }))}
-                    />
                   </CardContent>
                 </Card>
 
@@ -255,8 +405,8 @@ const ExtensiveFilters = ({ onFiltersApply }: ExtensiveFiltersProps) => {
                         <div key={level} className="flex items-center space-x-2">
                           <Checkbox
                             id={`seniority-${level}`}
-                            checked={filters.seniorityLevel.includes(level)}
-                            onCheckedChange={() => handleMultiSelectToggle('seniorityLevel', level)}
+                            checked={filters.role.seniorityLevel.includes(level)}
+                            onCheckedChange={(checked) => handleArrayToggle('role', 'seniorityLevel', level)}
                           />
                           <Label htmlFor={`seniority-${level}`} className="text-xs cursor-pointer">
                             {level}
@@ -273,23 +423,25 @@ const ExtensiveFilters = ({ onFiltersApply }: ExtensiveFiltersProps) => {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div>
-                      <Label className="text-xs">Overall Experience: {filters.overallExperience[0]}-{filters.overallExperience[1]} years</Label>
+                      <Label className="text-xs">Overall Experience: {filters.experience.overallExperience.min}-{filters.experience.overallExperience.max} years</Label>
                       <Slider
-                        value={filters.overallExperience}
-                        onValueChange={(value) => setFilters(prev => ({ ...prev, overallExperience: value }))}
+                        value={[filters.experience.overallExperience.min, filters.experience.overallExperience.max]}
+                        onValueChange={(value) => updateRangeValue('experience', 'overallExperience', value as [number, number])}
                         max={25}
                         step={1}
                         className="w-full mt-2"
+                        data-radix-collection-item
                       />
                     </div>
                     <div>
-                      <Label className="text-xs">AI/ML Specific: {filters.aiMlExperience[0]}-{filters.aiMlExperience[1]} years</Label>
+                      <Label className="text-xs">AI/ML Specific: {filters.experience.domainExperience.min}-{filters.experience.domainExperience.max} years</Label>
                       <Slider
-                        value={filters.aiMlExperience}
-                        onValueChange={(value) => setFilters(prev => ({ ...prev, aiMlExperience: value }))}
+                        value={[filters.experience.domainExperience.min, filters.experience.domainExperience.max]}
+                        onValueChange={(value) => updateRangeValue('experience', 'domainExperience', value as [number, number])}
                         max={20}
                         step={1}
                         className="w-full mt-2"
+                        data-radix-collection-item
                       />
                     </div>
                   </CardContent>
@@ -303,28 +455,29 @@ const ExtensiveFilters = ({ onFiltersApply }: ExtensiveFiltersProps) => {
                     <div className="flex items-center space-x-2">
                       <Checkbox
                         id="team-management"
-                        checked={filters.teamManagement}
-                        onCheckedChange={(checked) => setFilters(prev => ({ ...prev, teamManagement: !!checked }))}
+                        checked={filters.role.roleType.includes('Manager')}
+                        onCheckedChange={(checked) => handleArrayToggle('role', 'roleType', 'Manager')}
                       />
                       <Label htmlFor="team-management" className="text-xs">Has managed a team</Label>
                     </div>
-                    {filters.teamManagement && (
+                    {filters.role.roleType.includes('Manager') && (
                       <div>
-                        <Label className="text-xs">Team Size: {filters.teamSize[0]}-{filters.teamSize[1]} people</Label>
+                        <Label className="text-xs">Team Size: {filters.role.teamSize.min}-{filters.role.teamSize.max} people</Label>
                         <Slider
-                          value={filters.teamSize}
-                          onValueChange={(value) => setFilters(prev => ({ ...prev, teamSize: value }))}
+                          value={[filters.role.teamSize.min, filters.role.teamSize.max]}
+                          onValueChange={(value) => updateRangeValue('role', 'teamSize', value as [number, number])}
                           max={100}
                           step={1}
                           className="w-full mt-2"
+                          data-radix-collection-item
                         />
                       </div>
                     )}
                     <div className="flex items-center space-x-2">
                       <Checkbox
                         id="project-leadership"
-                        checked={filters.projectLeadership}
-                        onCheckedChange={(checked) => setFilters(prev => ({ ...prev, projectLeadership: !!checked }))}
+                        checked={filters.role.roleType.includes('Lead')}
+                        onCheckedChange={(checked) => handleArrayToggle('role', 'roleType', 'Lead')}
                       />
                       <Label htmlFor="project-leadership" className="text-xs">Led end-to-end projects</Label>
                     </div>
@@ -345,8 +498,8 @@ const ExtensiveFilters = ({ onFiltersApply }: ExtensiveFiltersProps) => {
                         <div key={lang} className="flex items-center space-x-2">
                           <Checkbox
                             id={`lang-${lang}`}
-                            checked={filters.programmingLanguages.includes(lang)}
-                            onCheckedChange={() => handleMultiSelectToggle('programmingLanguages', lang)}
+                            checked={filters.technicalSkills.programmingLanguages.includes(lang)}
+                            onCheckedChange={(checked) => handleArrayToggle('technicalSkills', 'programmingLanguages', lang)}
                           />
                           <Label htmlFor={`lang-${lang}`} className="text-xs cursor-pointer">
                             {lang}
@@ -367,8 +520,8 @@ const ExtensiveFilters = ({ onFiltersApply }: ExtensiveFiltersProps) => {
                         <div key={framework} className="flex items-center space-x-2">
                           <Checkbox
                             id={`framework-${framework}`}
-                            checked={filters.mlFrameworks.includes(framework)}
-                            onCheckedChange={() => handleMultiSelectToggle('mlFrameworks', framework)}
+                            checked={filters.technicalSkills.frameworks.includes(framework)}
+                            onCheckedChange={(checked) => handleArrayToggle('technicalSkills', 'frameworks', framework)}
                           />
                           <Label htmlFor={`framework-${framework}`} className="text-xs cursor-pointer">
                             {framework}
@@ -389,8 +542,8 @@ const ExtensiveFilters = ({ onFiltersApply }: ExtensiveFiltersProps) => {
                         <div key={dl} className="flex items-center space-x-2">
                           <Checkbox
                             id={`dl-${dl}`}
-                            checked={filters.deepLearningSpecifics.includes(dl)}
-                            onCheckedChange={() => handleMultiSelectToggle('deepLearningSpecifics', dl)}
+                            checked={filters.technicalSkills.otherTechnologies.includes(dl)}
+                            onCheckedChange={(checked) => handleArrayToggle('technicalSkills', 'otherTechnologies', dl)}
                           />
                           <Label htmlFor={`dl-${dl}`} className="text-xs cursor-pointer">
                             {dl}
@@ -411,8 +564,8 @@ const ExtensiveFilters = ({ onFiltersApply }: ExtensiveFiltersProps) => {
                         <div key={ai} className="flex items-center space-x-2">
                           <Checkbox
                             id={`ai-${ai}`}
-                            checked={filters.generativeAI.includes(ai)}
-                            onCheckedChange={() => handleMultiSelectToggle('generativeAI', ai)}
+                            checked={filters.technicalSkills.aiMlTools.includes(ai)}
+                            onCheckedChange={(checked) => handleArrayToggle('technicalSkills', 'aiMlTools', ai)}
                           />
                           <Label htmlFor={`ai-${ai}`} className="text-xs cursor-pointer">
                             {ai}
@@ -433,8 +586,8 @@ const ExtensiveFilters = ({ onFiltersApply }: ExtensiveFiltersProps) => {
                         <div key={tool} className="flex items-center space-x-2">
                           <Checkbox
                             id={`tool-${tool}`}
-                            checked={filters.dataScienceTools.includes(tool)}
-                            onCheckedChange={() => handleMultiSelectToggle('dataScienceTools', tool)}
+                            checked={filters.technicalSkills.devOpsTools.includes(tool)}
+                            onCheckedChange={(checked) => handleArrayToggle('technicalSkills', 'devOpsTools', tool)}
                           />
                           <Label htmlFor={`tool-${tool}`} className="text-xs cursor-pointer">
                             {tool}
@@ -455,8 +608,8 @@ const ExtensiveFilters = ({ onFiltersApply }: ExtensiveFiltersProps) => {
                         <div key={platform} className="flex items-center space-x-2">
                           <Checkbox
                             id={`cloud-${platform}`}
-                            checked={filters.cloudPlatforms.includes(platform)}
-                            onCheckedChange={() => handleMultiSelectToggle('cloudPlatforms', platform)}
+                            checked={filters.technicalSkills.cloudPlatforms.includes(platform)}
+                            onCheckedChange={(checked) => handleArrayToggle('technicalSkills', 'cloudPlatforms', platform)}
                           />
                           <Label htmlFor={`cloud-${platform}`} className="text-xs cursor-pointer">
                             {platform}
@@ -481,8 +634,8 @@ const ExtensiveFilters = ({ onFiltersApply }: ExtensiveFiltersProps) => {
                         <div key={skill} className="flex items-center space-x-2">
                           <Checkbox
                             id={`comm-${skill}`}
-                            checked={filters.communicationSkills.includes(skill)}
-                            onCheckedChange={() => handleMultiSelectToggle('communicationSkills', skill)}
+                            checked={filters.softSkills.communication.includes(skill)}
+                            onCheckedChange={(checked) => handleArrayToggle('softSkills', 'communication', skill)}
                           />
                           <Label htmlFor={`comm-${skill}`} className="text-xs cursor-pointer">
                             {skill}
@@ -501,16 +654,16 @@ const ExtensiveFilters = ({ onFiltersApply }: ExtensiveFiltersProps) => {
                     <div className="flex items-center space-x-2">
                       <Checkbox
                         id="analytical-skills"
-                        checked={filters.analyticalSkills}
-                        onCheckedChange={(checked) => setFilters(prev => ({ ...prev, analyticalSkills: !!checked }))}
+                        checked={filters.softSkills.problemSolving.includes('Strong Analytical Skills')}
+                        onCheckedChange={(checked) => handleArrayToggle('softSkills', 'problemSolving', 'Strong Analytical Skills')}
                       />
                       <Label htmlFor="analytical-skills" className="text-xs">Strong Analytical Skills</Label>
                     </div>
                     <div className="flex items-center space-x-2">
                       <Checkbox
                         id="cross-functional"
-                        checked={filters.crossFunctionalTeams}
-                        onCheckedChange={(checked) => setFilters(prev => ({ ...prev, crossFunctionalTeams: !!checked }))}
+                        checked={filters.softSkills.problemSolving.includes('Cross-functional Team Experience')}
+                        onCheckedChange={(checked) => handleArrayToggle('softSkills', 'problemSolving', 'Cross-functional Team Experience')}
                       />
                       <Label htmlFor="cross-functional" className="text-xs">Cross-functional Team Experience</Label>
                     </div>
@@ -531,8 +684,8 @@ const ExtensiveFilters = ({ onFiltersApply }: ExtensiveFiltersProps) => {
                         <div key={status} className="flex items-center space-x-2">
                           <Checkbox
                             id={`emp-${status}`}
-                            checked={filters.employmentStatus.includes(status)}
-                            onCheckedChange={() => handleMultiSelectToggle('employmentStatus', status)}
+                            checked={filters.role.roleType.includes(status)}
+                            onCheckedChange={(checked) => handleArrayToggle('role', 'roleType', status)}
                           />
                           <Label htmlFor={`emp-${status}`} className="text-xs cursor-pointer">
                             {status}
@@ -551,30 +704,21 @@ const ExtensiveFilters = ({ onFiltersApply }: ExtensiveFiltersProps) => {
                     <Input
                       placeholder="Country"
                       value={filters.location.country}
-                      onChange={(e) => setFilters(prev => ({ 
-                        ...prev, 
-                        location: { ...prev.location, country: e.target.value } 
-                      }))}
+                      onChange={(e) => updateNestedState('location', 'country', e.target.value)}
                     />
                     <Input
                       placeholder="State/Province"
                       value={filters.location.state}
-                      onChange={(e) => setFilters(prev => ({ 
-                        ...prev, 
-                        location: { ...prev.location, state: e.target.value } 
-                      }))}
+                      onChange={(e) => updateNestedState('location', 'state', e.target.value)}
                     />
                     <Input
                       placeholder="City"
                       value={filters.location.city}
-                      onChange={(e) => setFilters(prev => ({ 
-                        ...prev, 
-                        location: { ...prev.location, city: e.target.value } 
-                      }))}
+                      onChange={(e) => updateNestedState('location', 'city', e.target.value)}
                     />
                     <RadioGroup
-                      value={filters.workModel}
-                      onValueChange={(value) => setFilters(prev => ({ ...prev, workModel: value }))}
+                      value={filters.location.remote ? 'Remote' : filters.location.hybrid ? 'Hybrid' : 'On-site'}
+                      onValueChange={(value) => updateNestedState('location', 'remote', value === 'Remote')}
                     >
                       {['Remote', 'Hybrid', 'On-site'].map((model) => (
                         <div key={model} className="flex items-center space-x-2">
@@ -596,8 +740,8 @@ const ExtensiveFilters = ({ onFiltersApply }: ExtensiveFiltersProps) => {
                         <div key={industry} className="flex items-center space-x-2">
                           <Checkbox
                             id={`industry-${industry}`}
-                            checked={filters.industryExperience.includes(industry)}
-                            onCheckedChange={() => handleMultiSelectToggle('industryExperience', industry)}
+                            checked={filters.domain.industryExperience.includes(industry)}
+                            onCheckedChange={(checked) => handleArrayToggle('domain', 'industryExperience', industry)}
                           />
                           <Label htmlFor={`industry-${industry}`} className="text-xs cursor-pointer">
                             {industry}
@@ -618,14 +762,15 @@ const ExtensiveFilters = ({ onFiltersApply }: ExtensiveFiltersProps) => {
                   </CardHeader>
                   <CardContent>
                     <div>
-                      <Label className="text-xs">Match Score: {filters.matchScoreRange[0]}% - {filters.matchScoreRange[1]}%</Label>
+                      <Label className="text-xs">Match Score: {filters.preferences.matchScore.min}% - {filters.preferences.matchScore.max}%</Label>
                       <Slider
-                        value={filters.matchScoreRange}
-                        onValueChange={(value) => setFilters(prev => ({ ...prev, matchScoreRange: value }))}
+                        value={[filters.preferences.matchScore.min, filters.preferences.matchScore.max]}
+                        onValueChange={(value) => updateRangeValue('preferences', 'matchScore', value as [number, number])}
                         min={0}
                         max={100}
                         step={5}
                         className="w-full mt-2"
+                        data-radix-collection-item
                       />
                     </div>
                   </CardContent>
@@ -637,14 +782,15 @@ const ExtensiveFilters = ({ onFiltersApply }: ExtensiveFiltersProps) => {
                   </CardHeader>
                   <CardContent>
                     <div>
-                      <Label className="text-xs">Salary Range: ${filters.salaryRange[0].toLocaleString()} - ${filters.salaryRange[1].toLocaleString()}</Label>
+                      <Label className="text-xs">Salary Range: ${filters.compensation.salary.min.toLocaleString()} - ${filters.compensation.salary.max.toLocaleString()}</Label>
                       <Slider
-                        value={filters.salaryRange}
-                        onValueChange={(value) => setFilters(prev => ({ ...prev, salaryRange: value }))}
+                        value={[filters.compensation.salary.min, filters.compensation.salary.max]}
+                        onValueChange={(value) => updateRangeValue('compensation', 'salary', value as [number, number])}
                         min={30000}
                         max={500000}
                         step={10000}
                         className="w-full mt-2"
+                        data-radix-collection-item
                       />
                     </div>
                   </CardContent>
@@ -656,14 +802,15 @@ const ExtensiveFilters = ({ onFiltersApply }: ExtensiveFiltersProps) => {
                   </CardHeader>
                   <CardContent>
                     <div>
-                      <Label className="text-xs">Notice Period: {filters.noticePeriod[0]} - {filters.noticePeriod[1]} days</Label>
+                      <Label className="text-xs">Notice Period: {filters.availability.noticePeriod.min} - {filters.availability.noticePeriod.max} days</Label>
                       <Slider
-                        value={filters.noticePeriod}
-                        onValueChange={(value) => setFilters(prev => ({ ...prev, noticePeriod: value }))}
+                        value={[filters.availability.noticePeriod.min, filters.availability.noticePeriod.max]}
+                        onValueChange={(value) => updateRangeValue('availability', 'noticePeriod', value as [number, number])}
                         min={0}
                         max={120}
                         step={7}
                         className="w-full mt-2"
+                        data-radix-collection-item
                       />
                     </div>
                   </CardContent>
@@ -677,8 +824,8 @@ const ExtensiveFilters = ({ onFiltersApply }: ExtensiveFiltersProps) => {
                     <div className="flex items-center space-x-2">
                       <Checkbox
                         id="exclude-contacted"
-                        checked={filters.excludeContacted}
-                        onCheckedChange={(checked) => setFilters(prev => ({ ...prev, excludeContacted: !!checked }))}
+                        checked={filters.preferences.excludeContacted}
+                        onCheckedChange={(checked) => handleBooleanToggle('preferences', 'excludeContacted', !!checked)}
                       />
                       <Label htmlFor="exclude-contacted" className="text-xs">Exclude previously contacted candidates</Label>
                     </div>
@@ -689,11 +836,107 @@ const ExtensiveFilters = ({ onFiltersApply }: ExtensiveFiltersProps) => {
           </Tabs>
 
           <div className="flex justify-between pt-4 border-t">
-            <Button variant="outline" onClick={clearFilters}>
+            <Button variant="outline" onClick={() => {
+              setFilters({
+                location: {
+                  country: '',
+                  state: '',
+                  city: '',
+                  remote: false,
+                  hybrid: false,
+                  onsite: false,
+                  willingToRelocate: false
+                },
+                experience: {
+                  overallExperience: { min: 0, max: 20 },
+                  domainExperience: { min: 0, max: 15 },
+                  currentRoleExperience: { min: 0, max: 10 },
+                  averageTenure: { min: 0, max: 5 }
+                },
+                technicalSkills: {
+                  programmingLanguages: [],
+                  frameworks: [],
+                  databases: [],
+                  cloudPlatforms: [],
+                  devOpsTools: [],
+                  aiMlTools: [],
+                  otherTechnologies: []
+                },
+                domain: {
+                  primaryDomain: [],
+                  subDomains: [],
+                  industryExperience: [],
+                  preferredIndustries: []
+                },
+                company: {
+                  currentCompany: {
+                    type: [],
+                    size: { min: 0, max: 10000 }
+                  },
+                  pastCompanies: {
+                    minExperience: 0,
+                    preferredCompanies: [],
+                    excludeCompanies: []
+                  }
+                },
+                education: {
+                  degree: [],
+                  fieldOfStudy: [],
+                  minimumEducation: '',
+                  certifications: [],
+                  preferredInstitutions: []
+                },
+                role: {
+                  jobTitle: [],
+                  seniorityLevel: [],
+                  roleType: [],
+                  department: [],
+                  reportingTo: [],
+                  teamSize: { min: 0, max: 100 }
+                },
+                compensation: {
+                  salary: { min: 50000, max: 200000, currency: 'USD' },
+                  equity: false,
+                  bonus: { min: 0, max: 50000 },
+                  benefits: []
+                },
+                availability: {
+                  noticePeriod: { min: 0, max: 90 },
+                  startDate: '',
+                  availability: '',
+                  timezone: []
+                },
+                softSkills: {
+                  communication: [],
+                  leadership: [],
+                  problemSolving: [],
+                  teamwork: [],
+                  otherSkills: []
+                },
+                projects: {
+                  projectTypes: [],
+                  projectScale: [],
+                  teamSize: { min: 0, max: 50 },
+                  technologies: []
+                },
+                preferences: {
+                  matchScore: { min: 70, max: 100 },
+                  excludeContacted: false,
+                  excludeRejected: false,
+                  excludeShortlisted: false,
+                  activeInLastDays: 30
+                }
+              });
+              setActiveFilters([]);
+              setJobDescription('');
+            }}>
               Clear All Filters
             </Button>
-            <Button onClick={applyFilters} className="bg-blue-600 hover:bg-blue-700">
-              Apply Extensive Filters
+            <Button 
+              onClick={applyFilters} 
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              Apply Filters
             </Button>
           </div>
         </DialogContent>

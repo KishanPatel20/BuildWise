@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,93 +16,226 @@ import {
   TrendingUp,
   Users,
   FileText,
-  Settings
+  Settings,
+  Download,
+  Linkedin,
+  Github,
+  Globe
 } from 'lucide-react';
+import axios from 'axios';
+import { toast } from 'sonner';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
+interface WorkExperience {
+  id: number;
+  company_name: string;
+  role_designation: string;
+  start_date: string | null;
+  end_date: string | null;
+  is_current: boolean;
+  responsibilities: string;
+  technologies_used: string;
+}
+
+interface Project {
+  id: number;
+  title: string;
+  description: string;
+  tech_stack: string;
+  role_in_project: string;
+  github_link: string | null;
+  live_link: string | null;
+}
+
+interface CandidateProfile {
+  id: number;
+  user: {
+    id: number;
+    username: string;
+    email: string;
+    first_name: string;
+    last_name: string;
+  };
+  work_experiences: WorkExperience[];
+  projects: Project[];
+  certifications: any[];
+  name: string;
+  email: string;
+  phone: string;
+  gender: string | null;
+  date_of_birth: string | null;
+  linkedin_profile: string;
+  github_profile: string;
+  portfolio_link: string;
+  resume: string;
+  skills: string;
+  experience: number;
+  current_job_title: string | null;
+  current_company: string;
+  desired_roles: string | null;
+  preferred_industry_sector: string | null;
+  employment_type_preferences: string;
+  preferred_locations: string | null;
+  desired_salary_range: string | null;
+  willingness_to_relocate: boolean;
+  is_actively_looking: boolean;
+  status: string;
+  view_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface DashboardOverview {
+  profile_completeness_percentage: number;
+  view_count: number;
+  skill_summary: {
+    skills: string[];
+    total_skills: number;
+  };
+  editable_sections_links: {
+    education: string;
+    work_experience: string;
+    projects: string;
+    certifications: string;
+  };
+}
 
 const CandidateDashboard = () => {
   const navigate = useNavigate();
-  const [profileData, setProfileData] = useState<any>({});
+  const [profileData, setProfileData] = useState<CandidateProfile | null>(null);
+  const [dashboardOverview, setDashboardOverview] = useState<DashboardOverview | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [stats, setStats] = useState({
-    profileViews: 23,
-    recruiterContacts: 5,
-    jobMatches: 12,
-    profileCompleteness: 0
+    profileViews: 0,
+    recruiterContacts: 0,
+    jobMatches: 0,
+    profileCompleteness: 0,
+    totalSkills: 0
   });
 
   useEffect(() => {
-    // Load all profile data from localStorage
-    const basicInfo = JSON.parse(localStorage.getItem('candidateBasicInfo') || '{}');
-    const education = JSON.parse(localStorage.getItem('candidateEducation') || '[]');
-    const workExperience = JSON.parse(localStorage.getItem('candidateWorkExperience') || '[]');
-    const projects = JSON.parse(localStorage.getItem('candidateProjects') || '[]');
-    const certifications = JSON.parse(localStorage.getItem('candidateCertifications') || '[]');
-    const jobPreferences = JSON.parse(localStorage.getItem('candidateJobPreferences') || '{}');
+    const fetchData = async () => {
+      const token = sessionStorage.getItem('token');
+      if (!token) {
+        toast.error('Please login to continue');
+        navigate('/login');
+        return;
+      }
 
-    setProfileData({
-      basicInfo,
-      education,
-      workExperience,
-      projects,
-      certifications,
-      jobPreferences
-    });
+      try {
+        // Fetch profile data
+        const profileResponse = await axios.get(`${API_BASE_URL}/api/candidates/me/`, {
+          headers: {
+            'Authorization': `Token ${token}`
+          }
+        });
 
-    // Calculate profile completeness
-    let score = 0;
-    if (basicInfo?.firstName) score += 15;
-    if (education?.length > 0) score += 20;
-    if (workExperience?.length > 0) score += 20;
-    if (projects?.length > 0) score += 25;
-    if (certifications?.length > 0) score += 10;
-    if (jobPreferences?.jobTitle) score += 10;
+        // Fetch dashboard overview
+        const overviewResponse = await axios.get(`${API_BASE_URL}/api/candidates/dashboard_overview/`, {
+          headers: {
+            'Authorization': `Token ${token}`
+          }
+        });
 
-    setStats(prev => ({ ...prev, profileCompleteness: score }));
-  }, []);
+        setProfileData(profileResponse.data);
+        setDashboardOverview(overviewResponse.data);
+        
+        // Update stats with overview data
+        setStats(prev => ({
+          ...prev,
+          profileViews: overviewResponse.data.view_count || 0,
+          profileCompleteness: Math.round(overviewResponse.data.profile_completeness_percentage),
+          totalSkills: overviewResponse.data.skill_summary.total_skills
+        }));
+
+      } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.status === 401) {
+          sessionStorage.removeItem('token');
+          sessionStorage.removeItem('user');
+          toast.error('Session expired. Please login again.');
+          navigate('/login');
+        } else {
+          toast.error('Failed to load dashboard data');
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [navigate]);
+
+  const handleDownloadResume = () => {
+    if (profileData?.resume) {
+      window.open(profileData.resume, '_blank');
+    } else {
+      toast.error('No resume available');
+    }
+  };
+
+  const handleShareProfile = () => {
+    // TODO: Implement share functionality
+    toast.info('Share functionality coming soon!');
+  };
+
+  const handleLogout = () => {
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('user');
+    navigate('/login');
+  };
 
   const sections = [
     {
       title: 'Basic Information',
       icon: User,
       route: '/candidate/basic-info',
-      completed: !!profileData.basicInfo?.firstName,
+      completed: !!profileData?.name,
       color: 'blue'
-    },
-    {
-      title: 'Education',
-      icon: GraduationCap,
-      route: '/candidate/education',
-      completed: profileData.education?.length > 0,
-      color: 'green'
     },
     {
       title: 'Work Experience',
       icon: Briefcase,
       route: '/candidate/work-experience',
-      completed: profileData.workExperience?.length > 0,
-      color: 'blue'
+      completed: profileData?.work_experiences?.length > 0,
+      color: 'green',
+      apiEndpoint: dashboardOverview?.editable_sections_links.work_experience
     },
     {
       title: 'Projects',
       icon: Code,
       route: '/candidate/projects',
-      completed: profileData.projects?.length > 0,
-      color: 'purple'
+      completed: profileData?.projects?.length > 0,
+      color: 'purple',
+      apiEndpoint: dashboardOverview?.editable_sections_links.projects
     },
     {
       title: 'Certifications',
       icon: Award,
       route: '/candidate/certifications',
-      completed: profileData.certifications?.length > 0,
-      color: 'yellow'
+      completed: profileData?.certifications?.length > 0,
+      color: 'yellow',
+      apiEndpoint: dashboardOverview?.editable_sections_links.certifications
     },
     {
       title: 'Job Preferences',
       icon: Target,
       route: '/candidate/job-preferences',
-      completed: !!profileData.jobPreferences?.jobTitle,
+      completed: !!profileData?.desired_roles,
       color: 'green'
     }
   ];
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading profile data...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
@@ -122,12 +254,12 @@ const CandidateDashboard = () => {
               </div>
               <div className="hidden md:block">
                 <h1 className="text-xl font-semibold text-gray-800">
-                  Welcome back, {profileData.basicInfo?.firstName || 'Candidate'}!
+                  Welcome back, {profileData?.user?.first_name || 'Candidate'}!
                 </h1>
               </div>
             </div>
             <div className="flex items-center space-x-3">
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" onClick={handleShareProfile}>
                 <Share className="w-4 h-4 mr-2" />
                 Share Profile
               </Button>
@@ -138,7 +270,7 @@ const CandidateDashboard = () => {
               <Button 
                 variant="ghost" 
                 size="sm"
-                onClick={() => navigate('/login')}
+                onClick={handleLogout}
               >
                 Logout
               </Button>
@@ -149,7 +281,7 @@ const CandidateDashboard = () => {
 
       <div className="container mx-auto px-6 py-8">
         {/* Stats Cards */}
-        <div className="grid md:grid-cols-4 gap-6 mb-8">
+        <div className="grid md:grid-cols-5 gap-6 mb-8">
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
@@ -161,10 +293,6 @@ const CandidateDashboard = () => {
                   <Eye className="w-6 h-6 text-blue-600" />
                 </div>
               </div>
-              <div className="mt-4 flex items-center text-sm">
-                <TrendingUp className="w-4 h-4 text-green-500 mr-1" />
-                <span className="text-green-600">+12% from last week</span>
-              </div>
             </CardContent>
           </Card>
 
@@ -172,16 +300,12 @@ const CandidateDashboard = () => {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Recruiter Contacts</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.recruiterContacts}</p>
+                  <p className="text-sm font-medium text-gray-600">Work Experience</p>
+                  <p className="text-2xl font-bold text-gray-900">{profileData?.work_experiences?.length || 0}</p>
                 </div>
                 <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                  <Users className="w-6 h-6 text-green-600" />
+                  <Briefcase className="w-6 h-6 text-green-600" />
                 </div>
-              </div>
-              <div className="mt-4 flex items-center text-sm">
-                <TrendingUp className="w-4 h-4 text-green-500 mr-1" />
-                <span className="text-green-600">+2 this week</span>
               </div>
             </CardContent>
           </Card>
@@ -190,16 +314,26 @@ const CandidateDashboard = () => {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Job Matches</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.jobMatches}</p>
+                  <p className="text-sm font-medium text-gray-600">Projects</p>
+                  <p className="text-2xl font-bold text-gray-900">{profileData?.projects?.length || 0}</p>
                 </div>
                 <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                  <Target className="w-6 h-6 text-purple-600" />
+                  <Code className="w-6 h-6 text-purple-600" />
                 </div>
               </div>
-              <div className="mt-4 flex items-center text-sm">
-                <FileText className="w-4 h-4 text-blue-500 mr-1" />
-                <span className="text-blue-600">3 new today</span>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Skills</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats.totalSkills}</p>
+                </div>
+                <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center">
+                  <TrendingUp className="w-6 h-6 text-indigo-600" />
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -249,6 +383,7 @@ const CandidateDashboard = () => {
                                 <p className="text-sm text-gray-500">
                                   {section.completed ? 'Completed' : 'Incomplete'}
                                 </p>
+                                
                               </div>
                             </div>
                             <div className={`w-6 h-6 rounded-full ${
@@ -292,12 +427,21 @@ const CandidateDashboard = () => {
                   <Eye className="w-4 h-4 mr-2" />
                   View Portfolio
                 </Button>
-                <Button variant="outline" className="w-full">
+                <Button 
+                  variant="outline" 
+                  className="w-full"
+                  onClick={handleShareProfile}
+                >
                   <Share className="w-4 h-4 mr-2" />
                   Share Profile
                 </Button>
-                <Button variant="outline" className="w-full">
-                  <FileText className="w-4 h-4 mr-2" />
+                <Button 
+                  variant="outline" 
+                  className="w-full"
+                  onClick={handleDownloadResume}
+                  disabled={!profileData?.resume}
+                >
+                  <Download className="w-4 h-4 mr-2" />
                   Download Resume
                 </Button>
               </CardContent>
@@ -312,34 +456,92 @@ const CandidateDashboard = () => {
                 <div className="text-center">
                   <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-green-600 rounded-full flex items-center justify-center mx-auto mb-3">
                     <span className="text-white font-bold text-xl">
-                      {profileData.basicInfo?.firstName?.[0]}{profileData.basicInfo?.lastName?.[0]}
+                      {profileData?.user?.first_name?.[0]}{profileData?.user?.last_name?.[0]}
                     </span>
                   </div>
                   <h3 className="font-semibold text-lg">
-                    {profileData.basicInfo?.firstName} {profileData.basicInfo?.lastName}
+                    {profileData?.user?.first_name} {profileData?.user?.last_name}
                   </h3>
-                  <p className="text-gray-600">{profileData.jobPreferences?.jobTitle || 'Software Developer'}</p>
-                  <p className="text-sm text-gray-500">{profileData.basicInfo?.location}</p>
+                  <p className="text-gray-600">{profileData?.current_job_title || 'Not specified'}</p>
+                  <p className="text-sm text-gray-500">{profileData?.email}</p>
+                  
+                  {/* Social Links */}
+                  <div className="flex justify-center space-x-3 mt-3">
+                    {profileData?.linkedin_profile && (
+                      <a 
+                        href={`https://linkedin.com/${profileData.linkedin_profile}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-gray-600 hover:text-blue-600"
+                      >
+                        <Linkedin className="w-5 h-5" />
+                      </a>
+                    )}
+                    {profileData?.github_profile && (
+                      <a 
+                        href={profileData.github_profile}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-gray-600 hover:text-gray-900"
+                      >
+                        <Github className="w-5 h-5" />
+                      </a>
+                    )}
+                    {profileData?.portfolio_link && (
+                      <a 
+                        href={profileData.portfolio_link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-gray-600 hover:text-blue-600"
+                      >
+                        <Globe className="w-5 h-5" />
+                      </a>
+                    )}
+                  </div>
                 </div>
                 
                 <div className="space-y-3 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Education:</span>
-                    <span className="font-medium">{profileData.education?.length || 0} entries</span>
-                  </div>
-                  <div className="flex justify-between">
                     <span className="text-gray-600">Experience:</span>
-                    <span className="font-medium">{profileData.workExperience?.length || 0} entries</span>
+                    <span className="font-medium">{profileData?.work_experiences?.length || 0} positions</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Projects:</span>
-                    <span className="font-medium">{profileData.projects?.length || 0} entries</span>
+                    <span className="font-medium">{profileData?.projects?.length || 0} projects</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Certifications:</span>
-                    <span className="font-medium">{profileData.certifications?.length || 0} entries</span>
+                    <span className="font-medium">{profileData?.certifications?.length || 0} certifications</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Status:</span>
+                    <span className={`font-medium ${
+                      profileData?.is_actively_looking ? 'text-green-600' : 'text-gray-600'
+                    }`}>
+                      {profileData?.is_actively_looking ? 'Actively Looking' : 'Not Looking'}
+                    </span>
                   </div>
                 </div>
+
+                {/* Skills from Dashboard Overview */}
+                {dashboardOverview?.skill_summary.skills && (
+                  <div className="mt-4">
+                    <h4 className="text-sm font-medium text-gray-600 mb-2">Skills Overview</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {dashboardOverview.skill_summary.skills.map((skill, index) => (
+                        <span 
+                          key={index}
+                          className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs"
+                        >
+                          {skill.trim()}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">
+                      Total Skills: {dashboardOverview.skill_summary.total_skills}
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>

@@ -19,41 +19,44 @@ import CandidateDashboard from "./pages/candidate/Dashboard";
 import RecruiterDashboard from "./pages/recruiter/Dashboard";
 import NotFound from "./pages/NotFound";
 import RecruiterProfile from "./pages/recruiter/Profile";
+import { CandidateProvider } from '@/context/CandidateContext';
 
 const queryClient = new QueryClient();
 
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <Router>
-          <Routes>
-            <Route path="/" element={<Landing />} />
-            <Route path="/login" element={<Login />} />
-            
-            {/* Candidate Routes */}
-            <Route path="/candidate/signup" element={<CandidateSignup />} />
-            <Route path="/candidate/dashboard" element={<CandidateDashboard />} />
-            <Route path="/candidate/profile-setup" element={<ProfileSetup />} />
-            <Route path="/candidate/basic-info" element={<BasicInfo />} />
-            <Route path="/candidate/work-experience" element={<WorkExperience />} />
-            <Route path="/candidate/education" element={<Education />} />
-            <Route path="/candidate/projects" element={<Projects />} />
-            <Route path="/candidate/certifications" element={<Certifications />} />
-            <Route path="/candidate/job-preferences" element={<JobPreferences />} />
-            <Route path="/candidate/portfolio-preview" element={<PortfolioPreview />} />
-            
-            {/* Recruiter Routes */}
-            <Route path="/recruiter/signup" element={<RecruiterSignup />} />
-            <Route path="/recruiter/dashboard" element={<RecruiterDashboard />} />
-            <Route path="/recruiter/profile" element={<RecruiterProfile />} />
-            
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </Router>
-      </TooltipProvider>
+      <CandidateProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <Router>
+            <Routes>
+              <Route path="/" element={<Landing />} />
+              <Route path="/login" element={<Login />} />
+              
+              {/* Candidate Routes */}
+              <Route path="/candidate/signup" element={<CandidateSignup />} />
+              <Route path="/candidate/dashboard" element={<CandidateDashboard />} />
+              <Route path="/candidate/profile-setup" element={<ProfileSetup />} />
+              <Route path="/candidate/basic-info" element={<BasicInfo />} />
+              <Route path="/candidate/work-experience" element={<WorkExperience />} />
+              <Route path="/candidate/education" element={<Education />} />
+              <Route path="/candidate/projects" element={<Projects />} />
+              <Route path="/candidate/certifications" element={<Certifications />} />
+              <Route path="/candidate/job-preferences" element={<JobPreferences />} />
+              <Route path="/candidate/portfolio-preview" element={<PortfolioPreview />} />
+              
+              {/* Recruiter Routes */}
+              <Route path="/recruiter/signup" element={<RecruiterSignup />} />
+              <Route path="/recruiter/dashboard" element={<RecruiterDashboard />} />
+              <Route path="/recruiter/profile" element={<RecruiterProfile />} />
+              
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </Router>
+        </TooltipProvider>
+      </CandidateProvider>
     </QueryClientProvider>
   );
 }

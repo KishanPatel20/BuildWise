@@ -1,5 +1,4 @@
-
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -7,6 +6,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Award, Plus, Trash2, ExternalLink } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
+import axios from 'axios';
+import { toast } from 'sonner';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 interface Certification {
   id: string;
@@ -21,10 +24,54 @@ interface Certification {
 const Certifications = () => {
   const navigate = useNavigate();
   const [certifications, setCertifications] = useState<Certification[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const fetchCertifications = async () => {
+    const token = sessionStorage.getItem('token');
+    if (!token) {
+      toast.error('Please login to continue');
+      navigate('/login');
+      return;
+    }
+
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/certifications/`, {
+        headers: {
+          'Authorization': `Token ${token}`
+        }
+      });
+
+      if (response.data.length > 0) {
+        const transformedCertifications = response.data.map((cert: any) => ({
+          id: cert.id.toString(),
+          name: cert.name,
+          issuingOrganization: cert.issuing_organization,
+          issueDate: cert.issue_date,
+          expirationDate: cert.expiration_date || '',
+          credentialId: cert.credential_id || '',
+          credentialUrl: cert.credential_url || ''
+        }));
+        setCertifications(transformedCertifications);
+      }
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        toast.error(error.response?.data?.message || 'Failed to fetch certifications');
+      } else {
+        toast.error('An unexpected error occurred');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCertifications();
+  }, []);
 
   const addCertification = () => {
     const newCertification: Certification = {
-      id: Date.now().toString(),
+      id: 'new',
       name: '',
       issuingOrganization: '',
       issueDate: '',
@@ -35,8 +82,34 @@ const Certifications = () => {
     setCertifications([...certifications, newCertification]);
   };
 
-  const removeCertification = (id: string) => {
-    setCertifications(certifications.filter(cert => cert.id !== id));
+  const removeCertification = async (id: string) => {
+    if (id === 'new') {
+      setCertifications(certifications.filter(cert => cert.id !== id));
+      return;
+    }
+
+    const token = sessionStorage.getItem('token');
+    if (!token) {
+      toast.error('Please login to continue');
+      navigate('/login');
+      return;
+    }
+
+    try {
+      await axios.delete(`${API_BASE_URL}/api/certifications/${id}/`, {
+        headers: {
+          'Authorization': `Token ${token}`
+        }
+      });
+      setCertifications(certifications.filter(cert => cert.id !== id));
+      toast.success('Certification removed successfully');
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        toast.error(error.response?.data?.message || 'Failed to remove certification');
+      } else {
+        toast.error('An unexpected error occurred');
+      }
+    }
   };
 
   const updateCertification = (id: string, field: keyof Certification, value: string) => {
@@ -45,20 +118,80 @@ const Certifications = () => {
     ));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    localStorage.setItem('candidateCertifications', JSON.stringify(certifications));
-    navigate('/candidate/job-preferences');
+    setIsSubmitting(true);
+
+    const token = sessionStorage.getItem('token');
+    if (!token) {
+      toast.error('Please login to continue');
+      navigate('/login');
+      return;
+    }
+
+    try {
+      // Handle both new and existing certifications
+      const promises = certifications.map(async (certification) => {
+        const certificationData = {
+          name: certification.name,
+          issuing_organization: certification.issuingOrganization,
+          issue_date: certification.issueDate,
+          expiration_date: certification.expirationDate || null,
+          credential_id: certification.credentialId || null,
+          credential_url: certification.credentialUrl || null
+        };
+
+        if (certification.id === 'new') {
+          // Create new certification
+          return axios.post(`${API_BASE_URL}/api/certifications/`, certificationData, {
+            headers: {
+              'Authorization': `Token ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+        } else {
+          // Update existing certification
+          return axios.patch(`${API_BASE_URL}/api/certifications/${certification.id}/`, certificationData, {
+            headers: {
+              'Authorization': `Token ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+        }
+      });
+
+      await Promise.all(promises);
+      toast.success('Certifications updated successfully');
+      navigate('/candidate/job-preferences');
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        toast.error(error.response?.data?.message || 'Failed to update certifications');
+      } else {
+        toast.error('An unexpected error occurred');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const skipStep = () => {
-    localStorage.setItem('candidateCertifications', JSON.stringify([]));
     navigate('/candidate/job-preferences');
   };
 
   const currentStep = 6;
   const totalSteps = 7;
   const progressValue = (currentStep / totalSteps) * 100;
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
@@ -234,10 +367,28 @@ const Certifications = () => {
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back
               </Button>
-              <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
-                Continue
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
+              <div className="flex space-x-4">
+                <Button variant="outline" onClick={skipStep}>
+                  Skip
+                </Button>
+                <Button 
+                  type="submit" 
+                  className="bg-blue-600 hover:bg-blue-700"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      Continue
+                      <ArrowRight className="w-4 h-4 ml-2" />
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
           </form>
         )}
