@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Progress } from '@/components/ui/progress';
-import { Search, Upload, MessageSquare, Star, MapPin, Calendar, Briefcase, BarChart3, Brain, Menu, Settings, LogOut, ChevronDown, Plus, X, Users, Target, Clock, Heart, Phone, Mail, UserCheck, ChevronUp, Bell, HelpCircle, Sparkles, Grip, Loader2 } from 'lucide-react';
+import { Search, Upload, MessageSquare, Star, MapPin, Calendar, Briefcase, BarChart3, Brain, Menu, Settings, LogOut, ChevronDown, Plus, X, Users, Target, Clock, Heart, Phone, Mail, UserCheck, ChevronUp, Bell, HelpCircle, Sparkles, Grip, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import AnalyticsDashboard from '@/components/recruiter/AnalyticsDashboard';
 import PreScreeningSystem from '@/components/recruiter/candidate-ranking/PreScreeningSystem';
 import PersonalizedOutreach from '@/components/recruiter/candidate-ranking/PersonalizedOutreach';
@@ -25,6 +25,7 @@ import { RecruiterSearchFilters } from '@/types/recruiter';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { processSearchResultsWithGroq } from '@/services/groqService';
+import CommunicationPipeline from '@/components/recruiter/CommunicationPipeline';
 
 interface SearchAPIResponse {
   results: Array<{
@@ -109,14 +110,21 @@ interface Candidate {
   considerations: string[];
 }
 
-const SHORTLISTED_CANDIDATES_KEY = 'shortlistedCandidates';
+interface ShortlistedCandidate {
+  user_token: string;
+  name: string;
+  role: string;
+  matchScore: number;
+}
 
-const getShortlistedCandidates = (): string[] => {
+const SHORTLISTED_CANDIDATES_KEY = 'shortlisted_candidates';
+
+const getShortlistedCandidates = (): ShortlistedCandidate[] => {
   const stored = sessionStorage.getItem(SHORTLISTED_CANDIDATES_KEY);
   return stored ? JSON.parse(stored) : [];
 };
 
-const saveShortlistedCandidates = (candidates: string[]) => {
+const saveShortlistedCandidates = (candidates: ShortlistedCandidate[]) => {
   sessionStorage.setItem(SHORTLISTED_CANDIDATES_KEY, JSON.stringify(candidates));
 };
 
@@ -125,7 +133,7 @@ const RecruiterDashboard = () => {
   const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
   const [workflowsOpen, setWorkflowsOpen] = useState(true);
   const [filteredCandidates, setFilteredCandidates] = useState<any[]>([]);
-  const [shortlistedCandidates, setShortlistedCandidates] = useState<string[]>(() => getShortlistedCandidates());
+  const [shortlistedCandidates, setShortlistedCandidates] = useState<ShortlistedCandidate[]>(() => getShortlistedCandidates());
   const [selectedCandidates, setSelectedCandidates] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState('matchScore');
   const [isSearching, setIsSearching] = useState(false);
@@ -136,6 +144,7 @@ const RecruiterDashboard = () => {
   });
   const [lastSearchResults, setLastSearchResults] = useState<LastSearchResults | null>(null);
   const [recruiterName, setRecruiterName] = useState('');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   const [workflows] = useState([
     { id: '1', name: 'Frontend Developer Hiring', stage: 'Screening', candidates: 12, activeCount: 3, totalCount: 12, progress: 25 },
@@ -488,10 +497,15 @@ const RecruiterDashboard = () => {
       updateSearchProgress('Searching candidates...', 50, 'Using AI to find matching candidates');
 
       // Make API call to embeddings search endpoint
+      const recruiterToken = sessionStorage.getItem('recruiterToken');
+      if (!recruiterToken) {
+        throw new Error('No authorization token found. Please login again.');
+      }
+
       const response = await fetch('https://hireai-2ek4.onrender.com/api/embeddings/search/', {
         method: 'POST',
         headers: {
-          'Authorization': 'Token f0dcc002bfb240dc12f1ca0ce8322dfe09a24750',
+          'Authorization': `Token ${recruiterToken}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
@@ -613,9 +627,24 @@ const RecruiterDashboard = () => {
 
   const toggleShortlist = (candidateId: string) => {
     setShortlistedCandidates(prev => {
-      const newShortlisted = prev.includes(candidateId)
-        ? prev.filter(id => id !== candidateId)
-        : [...prev, candidateId];
+      const candidate = filteredCandidates.find(c => c.id === candidateId);
+      if (!candidate) return prev;
+
+      const isCurrentlyShortlisted = prev.some(c => c.user_token === candidateId);
+      let newShortlisted: ShortlistedCandidate[];
+
+      if (isCurrentlyShortlisted) {
+        // Remove from shortlist
+        newShortlisted = prev.filter(c => c.user_token !== candidateId);
+      } else {
+        // Add to shortlist with full details
+        newShortlisted = [...prev, {
+          user_token: candidateId,
+          name: candidate.name,
+          role: candidate.title,
+          matchScore: candidate.matchScore
+        }];
+      }
       
       // Save to session storage
       saveShortlistedCandidates(newShortlisted);
@@ -675,7 +704,7 @@ const RecruiterDashboard = () => {
 
   const getShortlistedCandidatesData = () => {
     return candidatesToShow.filter(candidate => 
-      shortlistedCandidates.includes(candidate.id)
+      shortlistedCandidates.some(c => c.user_token === candidate.id)
     );
   };
 
@@ -716,7 +745,7 @@ const RecruiterDashboard = () => {
             </span>
           </div>
           
-          {/* Enhanced Right Side */}
+          {/* Enhanced Right Side with User Dropdown */}
           <div className="flex items-center space-x-4">
             <Button variant="ghost" size="sm" className="relative">
               <Bell className="w-4 h-4" />
@@ -725,42 +754,61 @@ const RecruiterDashboard = () => {
               </Badge>
             </Button>
             
-            <Button variant="ghost" size="sm">
-              <HelpCircle className="w-4 h-4" />
-            </Button>
             
-            <Button className="bg-blue-600 hover:bg-blue-700">
-              <Plus className="w-4 h-4 mr-2" />
-              New Job
-            </Button>
-            
-            <span className="text-sm font-medium">Hi {recruiterName}!</span>
-            
-            <Avatar>
-              <AvatarImage src="/placeholder.svg" />
-              <AvatarFallback>{recruiterName.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-            </Avatar>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <div className="flex items-center space-x-2 cursor-pointer hover:bg-gray-100 p-2 rounded-lg transition-colors">
+                  <span className="text-sm font-medium">{recruiterName}</span>
+                  <Avatar className="h-8 w-8 border-2 border-gray-200">
+                    <AvatarImage src="/placeholder.svg" />
+                    <AvatarFallback>{recruiterName.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                  </Avatar>
+                </div>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => window.location.href = '/recruiter/profile'}>
+                  <UserCheck className="w-4 h-4 mr-2" />
+                  View Profile
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => window.location.href = '/recruiter/settings'}>
+                  <Settings className="w-4 h-4 mr-2" />
+                  Account Settings
+                </DropdownMenuItem>
+                
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="text-red-600 focus:text-red-600 focus:bg-red-50" onClick={() => window.location.href = '/login'}>
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Log Out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </header>
 
-      {/* Add this near the top of your dashboard to show shortlisted count */}
-      <div className="bg-white border-b border-gray-200 px-6 py-2">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-              <Heart className="w-4 h-4 mr-1" />
-              {shortlistedCount} Shortlisted Candidates
-            </Badge>
-          </div>
-        </div>
-      </div>
-
       <div className="flex h-[calc(100vh-73px)]">
-        {/* Enhanced Sidebar */}
-        <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
+        {/* Enhanced Sidebar with collapse feature */}
+        <div className={`relative bg-white border-r border-gray-200 transition-all duration-300 ease-in-out ${
+          isSidebarCollapsed ? 'w-16' : 'w-80'
+        }`}>
+          {/* Sidebar Toggle Button */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="absolute -right-3 top-6 z-50 h-6 w-6 rounded-full border bg-white shadow-sm hover:bg-gray-50"
+            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          >
+            {isSidebarCollapsed ? (
+              <ChevronRight className="h-4 w-4" />
+            ) : (
+              <ChevronLeft className="h-4 w-4" />
+            )}
+          </Button>
+
           {/* Workflows Section */}
-          <div className="p-6 border-b">
+          <div className={`p-6 border-b ${isSidebarCollapsed ? 'hidden' : ''}`}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold">Workflows</h2>
               <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
@@ -809,33 +857,24 @@ const RecruiterDashboard = () => {
               </CollapsibleContent>
             </Collapsible>
           </div>
-          
-          {/* Global Actions Section */}
-          <div className="p-6 border-b">
-            <div className="space-y-3">
-              <h3 className="text-sm font-medium text-gray-700">Global Actions</h3>
-              <div className="space-y-2">
-                <Button variant="outline" className="w-full justify-start" size="sm">
-                  <Upload className="w-4 h-4 mr-2" />
-                  Import Candidates
-                </Button>
-                <Button variant="outline" className="w-full justify-start" size="sm">
-                  <Users className="w-4 h-4 mr-2" />
-                  Bulk Actions
-                </Button>
-                <Button variant="outline" className="w-full justify-start" size="sm">
-                  <Target className="w-4 h-4 mr-2" />
-                  Manage Goals
-                </Button>
-              </div>
+
+          {/* Collapsed State Icons */}
+          {isSidebarCollapsed && (
+            <div className="flex flex-col items-center py-4 space-y-4">
+              <Button variant="ghost" size="sm" className="h-10 w-10 p-0" title="Workflows">
+                <Grip className="h-5 w-5" />
+              </Button>
+              <Button variant="ghost" size="sm" className="h-10 w-10 p-0" title="AI Copilot">
+                <Sparkles className="h-5 w-5" />
+              </Button>
+              <Button variant="ghost" size="sm" className="h-10 w-10 p-0" title="Settings">
+                <Settings className="h-5 w-5" />
+              </Button>
             </div>
-          </div>
-          
-          {/* Spacer */}
-          <div className="flex-1"></div>
-          
+          )}
+
           {/* Bottom Section - AI Copilot & Settings */}
-          <div className="p-6 border-t">
+          <div className={`p-6 border-t ${isSidebarCollapsed ? 'hidden' : ''}`}>
             <div className="space-y-3">
               {/* AI Copilot Status */}
               <div className="flex items-center space-x-2 p-2 bg-blue-50 rounded-lg">
@@ -1004,7 +1043,7 @@ const RecruiterDashboard = () => {
                             isSelected={selectedCandidates.includes(candidate.id)}
                             onSelect={handleCandidateSelect}
                             onShortlist={toggleShortlist}
-                            isShortlisted={shortlistedCandidates.includes(candidate.id)}
+                            isShortlisted={shortlistedCandidates.some(c => c.user_token === candidate.id)}
                           />
                         ))}
                       </div>
@@ -1067,27 +1106,7 @@ const RecruiterDashboard = () => {
             </TabsContent>
 
             <TabsContent value="outreach" className="flex-1 overflow-y-auto">
-              <Tabs defaultValue="prescreening" className="h-full">
-                <div className="border-b bg-white px-6 py-4">
-                  <TabsList className="grid w-full max-w-2xl grid-cols-3">
-                    <TabsTrigger value="prescreening">Pre-Screening</TabsTrigger>
-                    <TabsTrigger value="outreach">Outreach</TabsTrigger>
-                    <TabsTrigger value="workflow">Workflow</TabsTrigger>
-                  </TabsList>
-                </div>
-
-                <TabsContent value="prescreening" className="p-6">
-                  <PreScreeningSystem />
-                </TabsContent>
-
-                <TabsContent value="outreach" className="p-6">
-                  <PersonalizedOutreach />
-                </TabsContent>
-
-                <TabsContent value="workflow" className="p-6">
-                  <WorkflowManagement />
-                </TabsContent>
-              </Tabs>
+              <CommunicationPipeline />
             </TabsContent>
 
             <TabsContent value="analytics" className="flex-1 p-6 overflow-y-auto">
