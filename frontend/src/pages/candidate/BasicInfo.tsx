@@ -11,7 +11,7 @@ import { useCandidate } from '@/context/CandidateContext';
 import axios from 'axios';
 import { toast } from 'sonner';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const API_BASE_URL = '';  // Empty string for relative paths
 
 const BasicInfo = () => {
   const navigate = useNavigate();

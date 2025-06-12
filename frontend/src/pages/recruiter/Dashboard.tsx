@@ -128,6 +128,8 @@ const saveShortlistedCandidates = (candidates: ShortlistedCandidate[]) => {
   sessionStorage.setItem(SHORTLISTED_CANDIDATES_KEY, JSON.stringify(candidates));
 };
 
+const API_BASE_URL = '';  // Empty string for relative paths
+
 const RecruiterDashboard = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
@@ -358,7 +360,7 @@ const RecruiterDashboard = () => {
 
   const fetchCandidateDetails = async (userToken: string): Promise<Candidate | null> => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/candidates/me/`, {
+      const response = await fetch(`${API_BASE_URL}/api/candidates/me/`, {
         headers: {
           'Authorization': `Token ${userToken}`
         }
@@ -502,7 +504,7 @@ const RecruiterDashboard = () => {
         throw new Error('No authorization token found. Please login again.');
       }
 
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/embeddings/search/`, {
+      const response = await fetch(`${API_BASE_URL}/api/embeddings/search/`, {
         method: 'POST',
         headers: {
           'Authorization': `Token ${recruiterToken}`,
