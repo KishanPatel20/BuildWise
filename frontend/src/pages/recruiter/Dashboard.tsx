@@ -358,9 +358,9 @@ const RecruiterDashboard = () => {
 
   const fetchCandidateDetails = async (userToken: string): Promise<Candidate | null> => {
     try {
-      const response = await fetch('https://hireai-2ek4.onrender.com/api/candidates/me/', {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/candidates/me/`, {
         headers: {
-          'Authorization': 'Token f0dcc002bfb240dc12f1ca0ce8322dfe09a24750'
+          'Authorization': `Token ${userToken}`
         }
       });
 
@@ -502,7 +502,7 @@ const RecruiterDashboard = () => {
         throw new Error('No authorization token found. Please login again.');
       }
 
-      const response = await fetch('https://hireai-2ek4.onrender.com/api/embeddings/search/', {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/embeddings/search/`, {
         method: 'POST',
         headers: {
           'Authorization': `Token ${recruiterToken}`,

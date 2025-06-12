@@ -392,7 +392,7 @@ const RecruiterProfile = () => {
     }
   };
 
-  const handleSaveChanges = async () => {
+  const handleSavePersonalInfo = async () => {
     try {
       setIsSaving(true);
       const token = sessionStorage.getItem('recruiterToken');
@@ -402,7 +402,6 @@ const RecruiterProfile = () => {
         return;
       }
 
-      // Collect data from Personal Details section
       const personalInfo = {
         job_title: profileData.personalInfo.title,
         years_of_experience: profileData.personalInfo.yearsExperience,
@@ -410,7 +409,39 @@ const RecruiterProfile = () => {
         linkedin_profile: profileData.personalInfo.linkedinUrl,
       };
 
-      // Collect data from Company Details section
+      const response = await axios.patch(
+        `${API_BASE_URL}/recruiter/recruiters/me/`,
+        personalInfo,
+        {
+          headers: {
+            'Authorization': `Token ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (response.data) {
+        toast.success('Personal information updated successfully');
+        await fetchProfileData();
+      }
+    } catch (error: any) {
+      console.error('Error updating personal info:', error);
+      toast.error(error.response?.data?.message || 'Failed to update personal information');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveCompanyInfo = async () => {
+    try {
+      setIsSaving(true);
+      const token = sessionStorage.getItem('recruiterToken');
+      if (!token) {
+        toast.error('Please login to save changes');
+        navigate('/recruiter/login');
+        return;
+      }
+
       const companyInfo = {
         company_name: profileData.companyInfo.name,
         industry: profileData.companyInfo.industry,
@@ -421,19 +452,9 @@ const RecruiterProfile = () => {
         company_description: profileData.companyInfo.description,
       };
 
-      // Combine all data for the update
-      const updateData = {
-        ...personalInfo,
-        ...companyInfo,
-        bio: null, // This field is not currently in the form
-      };
-
-      // Log the data being sent (for debugging)
-      console.log('Sending update data:', updateData);
-
       const response = await axios.patch(
         `${API_BASE_URL}/recruiter/recruiters/me/`,
-        updateData,
+        companyInfo,
         {
           headers: {
             'Authorization': `Token ${token}`,
@@ -443,19 +464,12 @@ const RecruiterProfile = () => {
       );
 
       if (response.data) {
-        toast.success('Profile updated successfully');
-        // Refresh all data after successful save
+        toast.success('Company information updated successfully');
         await fetchProfileData();
       }
     } catch (error: any) {
-      console.error('Error updating profile:', error);
-      const errorMessage = error.response?.data?.message || 'Failed to update profile';
-      toast.error(errorMessage);
-      
-      // Log detailed error information (for debugging)
-      if (error.response?.data) {
-        console.error('API Error Details:', error.response.data);
-      }
+      console.error('Error updating company info:', error);
+      toast.error(error.response?.data?.message || 'Failed to update company information');
     } finally {
       setIsSaving(false);
     }
@@ -467,15 +481,7 @@ const RecruiterProfile = () => {
       <header className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => navigate('/recruiter/dashboard')}
-              className="flex items-center"
-            >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Dashboard
-            </Button>
+            
             <div className="flex items-center space-x-2">
               <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-green-600 rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold">H</span>
@@ -492,22 +498,13 @@ const RecruiterProfile = () => {
               Upload Logo
             </Button>
             <Button 
+              variant="ghost" 
               size="sm" 
-              className="bg-blue-600 hover:bg-blue-700"
-              onClick={handleSaveChanges}
-              disabled={isSaving}
+              onClick={() => navigate('/recruiter/dashboard')}
+              className="flex items-center"
             >
-              {isSaving ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save className="w-4 h-4 mr-2" />
-                  Save Changes
-                </>
-              )}
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Dashboard
             </Button>
           </div>
         </div>
@@ -623,6 +620,25 @@ const RecruiterProfile = () => {
                         })}
                       />
                     </div>
+                    <div className="flex justify-end pt-4">
+                      <Button 
+                        onClick={handleSavePersonalInfo}
+                        disabled={isSaving}
+                        className="bg-blue-600 hover:bg-blue-700"
+                      >
+                        {isSaving ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                            Saving...
+                          </>
+                        ) : (
+                          <>
+                            <Save className="w-4 h-4 mr-2" />
+                            Save Changes
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -730,6 +746,25 @@ const RecruiterProfile = () => {
                         })}
                       />
                     </div>
+                    <div className="flex justify-end pt-4">
+                      <Button 
+                        onClick={handleSaveCompanyInfo}
+                        disabled={isSaving}
+                        className="bg-blue-600 hover:bg-blue-700"
+                      >
+                        {isSaving ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                            Saving...
+                          </>
+                        ) : (
+                          <>
+                            <Save className="w-4 h-4 mr-2" />
+                            Save Changes
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -746,29 +781,10 @@ const RecruiterProfile = () => {
                           </CardTitle>
                           <CardDescription>Manage your company's departments and their details</CardDescription>
                         </div>
-                        <div className="flex space-x-2">
-                          <Button onClick={addDepartment}>
-                            <Plus className="w-4 h-4 mr-2" />
-                            Add Department
-                          </Button>
-                          <Button 
-                            onClick={saveDepartments}
-                            disabled={isSavingDepartments}
-                            className="bg-blue-600 hover:bg-blue-700"
-                          >
-                            {isSavingDepartments ? (
-                              <>
-                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                Saving...
-                              </>
-                            ) : (
-                              <>
-                                <Save className="w-4 h-4 mr-2" />
-                                Save Changes
-                              </>
-                            )}
-                          </Button>
-                        </div>
+                        <Button onClick={addDepartment}>
+                          <Plus className="w-4 h-4 mr-2" />
+                          Add Department
+                        </Button>
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-4">
@@ -825,6 +841,25 @@ const RecruiterProfile = () => {
                           </div>
                         </Card>
                       ))}
+                      <div className="flex justify-end pt-4">
+                        <Button 
+                          onClick={saveDepartments}
+                          disabled={isSavingDepartments}
+                          className="bg-blue-600 hover:bg-blue-700"
+                        >
+                          {isSavingDepartments ? (
+                            <>
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                              Saving...
+                            </>
+                          ) : (
+                            <>
+                              <Save className="w-4 h-4 mr-2" />
+                              Save Changes
+                            </>
+                          )}
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
 
@@ -835,29 +870,10 @@ const RecruiterProfile = () => {
                           <CardTitle>Active Roles</CardTitle>
                           <CardDescription>Current open positions and role details</CardDescription>
                         </div>
-                        <div className="flex space-x-2">
-                          <Button onClick={addRole}>
-                            <Plus className="w-4 h-4 mr-2" />
-                            Add Role
-                          </Button>
-                          <Button 
-                            onClick={saveRoles}
-                            disabled={isSavingRoles}
-                            className="bg-blue-600 hover:bg-blue-700"
-                          >
-                            {isSavingRoles ? (
-                              <>
-                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                Saving...
-                              </>
-                            ) : (
-                              <>
-                                <Save className="w-4 h-4 mr-2" />
-                                Save Changes
-                              </>
-                            )}
-                          </Button>
-                        </div>
+                        <Button onClick={addRole}>
+                          <Plus className="w-4 h-4 mr-2" />
+                          Add Role
+                        </Button>
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-4">
@@ -966,6 +982,25 @@ const RecruiterProfile = () => {
                           </div>
                         </Card>
                       ))}
+                      <div className="flex justify-end pt-4">
+                        <Button 
+                          onClick={saveRoles}
+                          disabled={isSavingRoles}
+                          className="bg-blue-600 hover:bg-blue-700"
+                        >
+                          {isSavingRoles ? (
+                            <>
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                              Saving...
+                            </>
+                          ) : (
+                            <>
+                              <Save className="w-4 h-4 mr-2" />
+                              Save Changes
+                            </>
+                          )}
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
                 </div>
@@ -1017,6 +1052,15 @@ const RecruiterProfile = () => {
                           </Button>
                         </div>
                       </Card>
+                    </div>
+                    <div className="flex justify-end pt-4">
+                      <Button 
+                        variant="outline"
+                        className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add New Verification
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
