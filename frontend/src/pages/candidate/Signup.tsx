@@ -8,7 +8,7 @@ import { ArrowLeft, Mail, Lock, User } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'sonner';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const API_BASE_URL = '';  // Empty string for relative paths
 
 const CandidateSignup = () => {
   const navigate = useNavigate();
