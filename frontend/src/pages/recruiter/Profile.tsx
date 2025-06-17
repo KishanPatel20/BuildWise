@@ -90,7 +90,7 @@ const RecruiterProfile = () => {
       const token = sessionStorage.getItem('recruiterToken');
       if (!token) {
         toast.error('Please login to access your profile');
-        navigate('/recruiter/login');
+        navigate('/login');
         return;
       }
 
@@ -398,7 +398,7 @@ const RecruiterProfile = () => {
       const token = sessionStorage.getItem('recruiterToken');
       if (!token) {
         toast.error('Please login to save changes');
-        navigate('/recruiter/login');
+        navigate('/login');
         return;
       }
 
@@ -438,7 +438,7 @@ const RecruiterProfile = () => {
       const token = sessionStorage.getItem('recruiterToken');
       if (!token) {
         toast.error('Please login to save changes');
-        navigate('/recruiter/login');
+        navigate('/login');
         return;
       }
 

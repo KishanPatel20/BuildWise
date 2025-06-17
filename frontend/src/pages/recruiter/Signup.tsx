@@ -203,7 +203,7 @@ const RecruiterSignup = () => {
                 Already have an account?{' '}
                 <Button
                   variant="link"
-                  onClick={() => navigate('/recruiter/login')}
+                  onClick={() => navigate('/login')}
                   className="p-0 text-green-600"
                 >
                   Sign in here

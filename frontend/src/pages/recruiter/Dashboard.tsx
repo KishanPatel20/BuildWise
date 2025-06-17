@@ -778,6 +778,7 @@ const RecruiterDashboard = () => {
                 </DropdownMenuItem>
                 
                 <DropdownMenuSeparator />
+                
                 <DropdownMenuItem className="text-red-600 focus:text-red-600 focus:bg-red-50" onClick={() => window.location.href = '/login'}>
                   <LogOut className="w-4 h-4 mr-2" />
                   Log Out
