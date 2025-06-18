@@ -9,7 +9,7 @@ import { ArrowLeft, Mail, Lock } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'sonner';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const API_BASE_URL = '';  // Empty string for relative paths
 
 const Login = () => {
   const navigate = useNavigate();
@@ -69,7 +69,7 @@ const Login = () => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      const response = await axios.post(`${API_BASE_URL}/recruiter/login/`, {
+      const response = await axios.post(`/recruiter/login/`, {
         username: recruiterForm.email,
         password: recruiterForm.password
       });
@@ -81,7 +81,7 @@ const Login = () => {
         sessionStorage.setItem('recruiterUser', JSON.stringify(response.data.user));
         
         toast.success('Login successful!');
-        navigate('/recruiter/dashboard');
+        navigate('/web/recruiter/dashboard');
       }
     } catch (error: any) {
       const errorMessage = error.response?.data?.message || 'Login failed. Please try again.';
@@ -230,7 +230,7 @@ const Login = () => {
                     Don't have an account?{' '}
                     <Button
                       variant="link"
-                      onClick={() => navigate('/recruiter/signup')}
+                      onClick={() => navigate('/web/recruiter/signup')}
                       className="p-0 text-green-600"
                     >
                       Sign up here

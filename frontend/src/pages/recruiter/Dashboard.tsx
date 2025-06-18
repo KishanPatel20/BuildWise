@@ -77,6 +77,25 @@ interface LastSearchResults {
   filters: RecruiterSearchFilters;
   processedFilters: SearchProcessedFilters;
   timestamp: Date;
+  workflow?: {
+    id: string;
+    search_query: string;
+    matched_summary: string;
+    created_at: string;
+    updated_at: string;
+    recruiter: number;
+    associated_role: string | null;
+    matched_candidates: Array<{
+      id: number;
+      name: string;
+      email: string;
+      current_role: string;
+      company: string;
+      match_score: number;
+      is_shortlisted: boolean;
+      candidate_token: string;
+    }>;
+  };
 }
 
 interface Candidate {
@@ -189,6 +208,8 @@ const saveShortlistedCandidates = (candidates: ShortlistedCandidate[]) => {
   sessionStorage.setItem(SHORTLISTED_CANDIDATES_KEY, JSON.stringify(candidates));
 };
 
+const API_BASE_URL = '';  // Empty string for relative paths
+
 const RecruiterDashboard = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
@@ -213,6 +234,7 @@ const RecruiterDashboard = () => {
   const [isNamingDialogOpen, setIsNamingDialogOpen] = useState(false);
   const [workflowName, setWorkflowName] = useState('');
   const [pendingSearch, setPendingSearch] = useState<{query: string, filters: RecruiterSearchFilters} | null>(null);
+  const [currentWorkflowId, setCurrentWorkflowId] = useState<string | null>(null);
 
   const [mockCandidates] = useState([
     {
@@ -419,7 +441,7 @@ const RecruiterDashboard = () => {
 
   const fetchCandidateDetails = async (userToken: string): Promise<Candidate | null> => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/candidates/me/`, {
+      const response = await fetch(`${API_BASE_URL}/api/candidates/me/`, {
         headers: {
           'Authorization': `Token ${userToken}`
         }
@@ -585,7 +607,7 @@ const RecruiterDashboard = () => {
         throw new Error('Recruiter details not loaded. Please try again.');
       }
 
-      const searchResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/recruiter/recruiters/${recruiterDetails.id}/create-workflow/`, {
+      const searchResponse = await fetch(`/recruiter/recruiters/${recruiterDetails.id}/create-workflow/`, {
         method: 'POST',
         headers: {
           'Authorization': `Token ${recruiterToken}`,
@@ -603,6 +625,11 @@ const RecruiterDashboard = () => {
 
       const searchResults = await searchResponse.json();
       console.log('Search Results:', searchResults);
+
+      // Store the workflow ID from the response
+      if (searchResults.workflow?.id) {
+        setCurrentWorkflowId(searchResults.workflow.id);
+      }
 
       // Add the new workflow to the workflows list
       if (searchResults.workflow) {
@@ -623,16 +650,23 @@ const RecruiterDashboard = () => {
       updateSearchProgress('Analyzing matches...', 70, 'Using AI to refine match scores');
       const refinedScores = await processSearchResultsWithGroq(searchResults);
 
-      // Process candidates with refined scores
+      // Process candidates with refined scores and workflow candidate IDs
       const processedCandidates = await Promise.all(
         searchResults.results.map(async (result, index) => {
           const refinedScore = refinedScores[index];
-          const candidateDetails =  await fetchCandidateDetails(result.user_token);
+          const candidateDetails = await fetchCandidateDetails(result.user_token);
+          
+          // Find matching candidate from workflow response to get the ID
+          const workflowCandidate = searchResults.workflow?.matched_candidates.find(
+            c => c.candidate_token === result.user_token
+          );
           
           // If we have detailed candidate information, use it with refined score
           if (candidateDetails) {
             return {
               ...candidateDetails,
+              id: result.user_token,
+              candidate_token: result.user_token,
               matchScore: refinedScore.matchScore,
               aiInsight: refinedScore.reasoning,
               matchReasons: refinedScore.topMatches,
@@ -645,6 +679,7 @@ const RecruiterDashboard = () => {
           // Fallback to basic information with refined score
           return {
             id: result.user_token,
+            candidate_token: result.user_token,
             name: result.name,
             role: result.current_role,
             title: result.current_role,
@@ -686,7 +721,8 @@ const RecruiterDashboard = () => {
             (refinedScores.reduce((acc, score) => acc + score.matchScore, 0) / refinedScores.length).toFixed(1)
           }%`
         },
-        timestamp: new Date()
+        timestamp: new Date(),
+        workflow: searchResults.workflow
       });
 
       updateSearchProgress('Search complete!', 100, `Found ${processedCandidates.length} matching candidates`);
@@ -726,31 +762,70 @@ const RecruiterDashboard = () => {
     );
   };
 
-  const toggleShortlist = (candidateId: string) => {
-    setShortlistedCandidates(prev => {
-      const candidate = filteredCandidates.find(c => c.id === candidateId);
-      if (!candidate) return prev;
-
-      const isCurrentlyShortlisted = prev.some(c => c.user_token === candidateId);
-      let newShortlisted: ShortlistedCandidate[];
-
-      if (isCurrentlyShortlisted) {
-        // Remove from shortlist
-        newShortlisted = prev.filter(c => c.user_token !== candidateId);
-      } else {
-        // Add to shortlist with full details
-        newShortlisted = [...prev, {
-          user_token: candidateId,
-          name: candidate.name,
-          role: candidate.title,
-          matchScore: candidate.matchScore
-        }];
+  const toggleShortlist = async (candidateId: string) => {
+    try {
+      const recruiterToken = sessionStorage.getItem('recruiterToken');
+      if (!recruiterToken) {
+        throw new Error('No authorization token found');
       }
-      
-      // Save to session storage
-      saveShortlistedCandidates(newShortlisted);
-      return newShortlisted;
-    });
+
+      const candidate = filteredCandidates.find(c => c.id === candidateId);
+      if (!candidate) return;
+
+      const isCurrentlyShortlisted = shortlistedCandidates.some(c => c.user_token === candidateId);
+
+      if (!isCurrentlyShortlisted) {
+        // Use the stored workflow ID
+        if (!currentWorkflowId) {
+          throw new Error('No active workflow found');
+        }
+
+        // Call API to shortlist the candidate
+        const shortlistResponse = await fetch('/recruiter/selected-candidates/', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Token ${recruiterToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            candidate_token: candidate.candidate_token,
+            workflow_id: currentWorkflowId
+          })
+        });
+
+        if (!shortlistResponse.ok) {
+          throw new Error('Failed to shortlist candidate');
+        }
+
+        const shortlistData = await shortlistResponse.json();
+        console.log('Shortlist response:', shortlistData);
+
+        // Update local state
+        setShortlistedCandidates(prev => {
+          const newShortlisted = [...prev, {
+            user_token: candidate.candidate_token,
+            name: candidate.name,
+            role: candidate.title,
+            matchScore: candidate.matchScore
+          }];
+          saveShortlistedCandidates(newShortlisted);
+          return newShortlisted;
+        });
+
+        toast.success('Candidate shortlisted successfully');
+      } else {
+        // Remove from shortlist
+        setShortlistedCandidates(prev => {
+          const newShortlisted = prev.filter(c => c.user_token !== candidate.candidate_token);
+          saveShortlistedCandidates(newShortlisted);
+          return newShortlisted;
+        });
+        toast.success('Candidate removed from shortlist');
+      }
+    } catch (error) {
+      console.error('Error toggling shortlist:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to update shortlist status');
+    }
   };
 
   const handleCandidateSelect = (candidateId: string) => {
@@ -818,7 +893,7 @@ const RecruiterDashboard = () => {
         throw new Error('No authorization token found');
       }
 
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/recruiter/recruiters/me`, {
+      const response = await fetch(`/recruiter/recruiters/me`, {
         headers: {
           'Authorization': `Token ${recruiterToken}`
         }
@@ -844,7 +919,7 @@ const RecruiterDashboard = () => {
         throw new Error('No authorization token found');
       }
 
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/recruiter/workflows/`, {
+      const response = await fetch(`/recruiter/workflows/`, {
         headers: {
           'Authorization': `Token ${recruiterToken}`
         }
@@ -860,7 +935,7 @@ const RecruiterDashboard = () => {
       // Fetch details for each workflow
       const detailsPromises = data.map(async (workflow: Workflow) => {
         const detailsResponse = await fetch(
-          `${import.meta.env.VITE_API_BASE_URL}/recruiter/workflows/${workflow.id}/candidates`,
+          `/recruiter/workflows/${workflow.id}/candidates`,
           {
             headers: {
               'Authorization': `Token ${recruiterToken}`
@@ -942,11 +1017,11 @@ const RecruiterDashboard = () => {
               <DropdownMenuContent align="end" className="w-56">
                 
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => window.location.href = '/recruiter/profile'}>
+                <DropdownMenuItem onClick={() => window.location.href = '/web/recruiter/profile'}>
                   <UserCheck className="w-4 h-4 mr-2" />
                   View Profile
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => window.location.href = '/recruiter/settings'}>
+                <DropdownMenuItem onClick={() => window.location.href = '/web/recruiter/settings'}>
                   <Settings className="w-4 h-4 mr-2" />
                   Account Settings
                 </DropdownMenuItem>
@@ -1082,7 +1157,7 @@ const RecruiterDashboard = () => {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-48">
-                  <DropdownMenuItem onClick={() => window.location.href = '/recruiter/profile'}>
+                  <DropdownMenuItem onClick={() => window.location.href = '/web/recruiter/profile'}>
                     <Settings className="w-4 h-4 mr-2" />
                     Profile Settings
                   </DropdownMenuItem>
@@ -1372,19 +1447,31 @@ const RecruiterDashboard = () => {
 
       {/* Add Workflow Naming Dialog */}
       <Dialog open={isNamingDialogOpen} onOpenChange={setIsNamingDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Name Your Search Workflow</DialogTitle>
+        <DialogContent className="sm:max-w-[425px] bg-white rounded-xl shadow-lg border-0">
+          <DialogHeader className="space-y-3 pb-4">
+            <div className="flex items-center justify-center w-12 h-12 rounded-full bg-blue-50 mx-auto mb-2">
+              <Search className="w-6 h-6 text-blue-600" />
+            </div>
+            <DialogTitle className="text-xl font-semibold text-center text-gray-900">
+              Name Your Search
+            </DialogTitle>
+            <p className="text-sm text-gray-500 text-center">
+              Give your search a memorable name to easily find it later
+            </p>
           </DialogHeader>
           <div className="py-4">
             <Input
-              placeholder="Enter a name for this search workflow"
+              placeholder="e.g., Senior Frontend Engineers - React"
               value={workflowName}
               onChange={(e) => setWorkflowName(e.target.value)}
-              className="w-full"
+              className="w-full h-12 px-4 text-base border-gray-200 focus:border-blue-500 focus:ring-blue-500 rounded-lg transition-colors"
+              autoFocus
             />
+            <p className="mt-2 text-xs text-gray-500">
+              Tip: Use a descriptive name that includes role, skills, or location
+            </p>
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:gap-0">
             <Button
               variant="outline"
               onClick={() => {
@@ -1392,15 +1479,26 @@ const RecruiterDashboard = () => {
                 setWorkflowName('');
                 setPendingSearch(null);
               }}
+              className="w-full sm:w-auto hover:bg-gray-50 border-gray-200"
             >
               Cancel
             </Button>
             <Button
               onClick={executeSearch}
-              disabled={!workflowName.trim()}
-              className="bg-blue-600 hover:bg-blue-700"
+              disabled={!workflowName.trim() || isSearching}
+              className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 min-w-[120px] transition-all duration-200"
             >
-              Start Search
+              {isSearching ? (
+                <div className="flex items-center space-x-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Searching...</span>
+                </div>
+              ) : (
+                <div className="flex items-center space-x-2">
+                  <Search className="w-4 h-4" />
+                  <span>Start Search</span>
+                </div>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

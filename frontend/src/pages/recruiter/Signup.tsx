@@ -32,7 +32,7 @@ const RecruiterSignup = () => {
 
     setIsLoading(true);
     try {
-      const response = await axios.post(`${API_BASE_URL}/recruiter/register/`, {
+      const response = await axios.post(`/recruiter/register/`, {
         username: form.email,
         email: form.email,
         password: form.password,

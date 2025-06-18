@@ -48,9 +48,9 @@ function App() {
               <Route path="/candidate/portfolio-preview" element={<PortfolioPreview />} />
               
               {/* Recruiter Routes */}
-              <Route path="/recruiter/signup" element={<RecruiterSignup />} />
-              <Route path="/recruiter/dashboard" element={<RecruiterDashboard />} />
-              <Route path="/recruiter/profile" element={<RecruiterProfile />} />
+              <Route path="/web/recruiter/signup" element={<RecruiterSignup />} />
+              <Route path="/web/recruiter/dashboard" element={<RecruiterDashboard />} />
+              <Route path="/web/recruiter/profile" element={<RecruiterProfile />} />
               
               <Route path="*" element={<NotFound />} />
             </Routes>

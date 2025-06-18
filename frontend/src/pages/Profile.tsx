@@ -1,17 +1,18 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
+import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Plus, X, Building, Users, Briefcase, Shield, Upload, Save } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import { toast } from 'sonner';
+import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { ArrowLeft, Building, Plus, Save, Upload, Users, X } from 'lucide-react';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const API_BASE_URL = '';  // Empty string for relative paths
 
 interface Department {
   id: string;
@@ -32,7 +33,7 @@ interface Role {
   isModified?: boolean;
 }
 
-interface RecruiterProfile {
+interface Profile {
   id: number;
   user: {
     id: number;
@@ -55,7 +56,7 @@ interface RecruiterProfile {
   linkedin_profile: string | null;
 }
 
-const RecruiterProfile = () => {
+const Profile = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -90,16 +91,16 @@ const RecruiterProfile = () => {
       const token = sessionStorage.getItem('recruiterToken');
       if (!token) {
         toast.error('Please login to access your profile');
-        navigate('/login');
+        navigate('/web/recruiter/login');
         return;
       }
 
-      // Fetch recruiter profile
+      // Fetch profile
       const profileResponse = await axios.get(`/recruiter/recruiters/me/`, {
         headers: { 'Authorization': `Token ${token}` }
       });
 
-      const profile: RecruiterProfile = profileResponse.data;
+      const profile: Profile = profileResponse.data;
       
       // Update profile data
       setProfileData({
@@ -202,174 +203,6 @@ const RecruiterProfile = () => {
     }
   };
 
-  const updateDepartment = (id: string, field: keyof Department, value: string | number) => {
-    setDepartments(departments.map(dept => 
-      dept.id === id 
-        ? { 
-            ...dept, 
-            [field]: value,
-            isModified: !dept.isNew
-          } 
-        : dept
-    ));
-  };
-
-  const saveDepartments = async () => {
-    try {
-      setIsSavingDepartments(true);
-      const token = sessionStorage.getItem('recruiterToken');
-      if (!token) {
-        toast.error('Please login to save departments');
-        return;
-      }
-
-      const headers = {
-        'Authorization': `Token ${token}`,
-        'Content-Type': 'application/json'
-      };
-
-      for (const dept of departments) {
-        if (dept.isNew) {
-          await axios.post(
-            `/recruiter/departments/`,
-            { name: dept.name },
-            { headers }
-          );
-        } else if (dept.isModified) {
-          await axios.patch(
-            `/recruiter/departments/${dept.id}/`,
-            { name: dept.name },
-            { headers }
-          );
-        }
-      }
-
-      const departmentsResponse = await axios.get(`/recruiter/departments/`, {
-        headers: { 'Authorization': `Token ${token}` }
-      });
-
-      if (departmentsResponse.data && Array.isArray(departmentsResponse.data)) {
-        const formattedDepartments = departmentsResponse.data.map((dept: any) => ({
-          id: dept.id.toString(),
-          name: dept.name || '',
-          description: dept.description || '',
-          headCount: dept.head_count || 0,
-        }));
-        setDepartments(formattedDepartments);
-      }
-
-      toast.success('Departments saved successfully');
-    } catch (error: any) {
-      console.error('Error saving departments:', error);
-      toast.error(error.response?.data?.message || 'Failed to save departments');
-    } finally {
-      setIsSavingDepartments(false);
-    }
-  };
-
-  const addRole = () => {
-    const newRole: Role = {
-      id: `new-${Date.now()}`,
-      title: '',
-      department: departments.length > 0 ? departments[0].name : '',
-      level: 'Mid',
-      isActive: true,
-      isNew: true
-    };
-    setRoles([...roles, newRole]);
-  };
-
-  const removeRole = async (id: string) => {
-    try {
-      const token = sessionStorage.getItem('recruiterToken');
-      if (!token) {
-        toast.error('Please login to remove role');
-        return;
-      }
-
-      if (id.startsWith('new-')) {
-        setRoles(roles.filter(role => role.id !== id));
-        return;
-      }
-
-      await axios.delete(`/recruiter/active-roles/${id}`, {
-        headers: { 'Authorization': `Token ${token}` }
-      });
-
-      setRoles(roles.filter(role => role.id !== id));
-      toast.success('Role removed successfully');
-    } catch (error: any) {
-      console.error('Error removing role:', error);
-      toast.error(error.response?.data?.message || 'Failed to remove role');
-    }
-  };
-
-  const updateRole = (id: string, field: keyof Role, value: string | boolean) => {
-    setRoles(roles.map(role => 
-      role.id === id 
-        ? { 
-            ...role, 
-            [field]: value,
-            isModified: !role.isNew
-          } 
-        : role
-    ));
-  };
-
-  const saveRoles = async () => {
-    try {
-      setIsSavingRoles(true);
-      const token = sessionStorage.getItem('recruiterToken');
-      if (!token) {
-        toast.error('Please login to save roles');
-        return;
-      }
-
-      const headers = {
-        'Authorization': `Token ${token}`,
-        'Content-Type': 'application/json'
-      };
-
-      for (const role of roles) {
-        if (role.isNew) {
-          await axios.post(
-            `/recruiter/active-roles/`,
-            { name: role.title },
-            { headers }
-          );
-        } else if (role.isModified) {
-          await axios.patch(
-            `/recruiter/active-roles/${role.id}/`,
-            { name: role.title },
-            { headers }
-          );
-        }
-      }
-
-      const rolesResponse = await axios.get(`/recruiter/active-roles/`, {
-        headers: { 'Authorization': `Token ${token}` }
-      });
-
-      if (rolesResponse.data && Array.isArray(rolesResponse.data)) {
-        const formattedRoles = rolesResponse.data.map((role: any) => ({
-          id: role.id.toString(),
-          title: role.title || '',
-          department: role.department || '',
-          level: role.level || 'Mid',
-          isActive: role.is_active || true,
-        }));
-        setRoles(formattedRoles);
-      }
-
-      toast.success('Roles saved successfully');
-    } catch (error: any) {
-      console.error('Error saving roles:', error);
-      toast.error(error.response?.data?.message || 'Failed to save roles');
-    } finally {
-      setIsSavingRoles(false);
-    }
-  };
-
   const handleSelectChange = (field: string, value: string) => {
     if (field.startsWith('personal.')) {
       const personalField = field.split('.')[1];
@@ -398,7 +231,7 @@ const RecruiterProfile = () => {
       const token = sessionStorage.getItem('recruiterToken');
       if (!token) {
         toast.error('Please login to save changes');
-        navigate('/login');
+        navigate('/web/recruiter/login');
         return;
       }
 
@@ -438,7 +271,7 @@ const RecruiterProfile = () => {
       const token = sessionStorage.getItem('recruiterToken');
       if (!token) {
         toast.error('Please login to save changes');
-        navigate('/login');
+        navigate('/web/recruiter/login');
         return;
       }
 
@@ -481,7 +314,6 @@ const RecruiterProfile = () => {
       <header className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            
             <div className="flex items-center space-x-2">
               <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-green-600 rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold">H</span>
@@ -518,7 +350,7 @@ const RecruiterProfile = () => {
         ) : (
           <>
             <div className="mb-6">
-              <h1 className="text-2xl font-bold text-gray-900">Recruiter Profile</h1>
+              <h1 className="text-2xl font-bold text-gray-900">Profile</h1>
               <p className="text-gray-600">Manage your profile and company information to build credibility with candidates</p>
             </div>
 
@@ -775,11 +607,8 @@ const RecruiterProfile = () => {
                     <CardHeader>
                       <div className="flex items-center justify-between">
                         <div>
-                          <CardTitle className="flex items-center space-x-2">
-                            <Briefcase className="w-5 h-5" />
-                            <span>Departments</span>
-                          </CardTitle>
-                          <CardDescription>Manage your company's departments and their details</CardDescription>
+                          <CardTitle>Departments</CardTitle>
+                          <CardDescription>Manage your company departments and teams</CardDescription>
                         </div>
                         <Button onClick={addDepartment}>
                           <Plus className="w-4 h-4 mr-2" />
@@ -809,14 +638,19 @@ const RecruiterProfile = () => {
                               <X className="w-4 h-4" />
                             </Button>
                           </div>
-                          <div className="grid md:grid-cols-3 gap-4">
+                          <div className="grid md:grid-cols-2 gap-4">
                             <div className="space-y-2">
-                              <label className="text-sm font-medium">Name</label>
+                              <label className="text-sm font-medium">Department Name</label>
                               <Input 
                                 value={dept.name}
-                                onChange={(e) => updateDepartment(dept.id, 'name', e.target.value)}
-                                placeholder="e.g., Engineering"
-                                disabled={isSavingDepartments}
+                                onChange={(e) => {
+                                  const updatedDepts = departments.map(d => 
+                                    d.id === dept.id 
+                                      ? { ...d, name: e.target.value, isModified: true }
+                                      : d
+                                  );
+                                  setDepartments(updatedDepts);
+                                }}
                               />
                             </div>
                             <div className="space-y-2">
@@ -824,42 +658,33 @@ const RecruiterProfile = () => {
                               <Input 
                                 type="number"
                                 value={dept.headCount}
-                                onChange={(e) => updateDepartment(dept.id, 'headCount', parseInt(e.target.value) || 0)}
-                                placeholder="0"
-                                disabled={isSavingDepartments}
+                                onChange={(e) => {
+                                  const updatedDepts = departments.map(d => 
+                                    d.id === dept.id 
+                                      ? { ...d, headCount: parseInt(e.target.value) || 0, isModified: true }
+                                      : d
+                                  );
+                                  setDepartments(updatedDepts);
+                                }}
                               />
                             </div>
-                            <div className="space-y-2 md:col-span-1">
+                            <div className="space-y-2 md:col-span-2">
                               <label className="text-sm font-medium">Description</label>
-                              <Input 
+                              <Textarea 
                                 value={dept.description}
-                                onChange={(e) => updateDepartment(dept.id, 'description', e.target.value)}
-                                placeholder="Brief description"
-                                disabled={isSavingDepartments}
+                                onChange={(e) => {
+                                  const updatedDepts = departments.map(d => 
+                                    d.id === dept.id 
+                                      ? { ...d, description: e.target.value, isModified: true }
+                                      : d
+                                  );
+                                  setDepartments(updatedDepts);
+                                }}
                               />
                             </div>
                           </div>
                         </Card>
                       ))}
-                      <div className="flex justify-end pt-4">
-                        <Button 
-                          onClick={saveDepartments}
-                          disabled={isSavingDepartments}
-                          className="bg-blue-600 hover:bg-blue-700"
-                        >
-                          {isSavingDepartments ? (
-                            <>
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                              Saving...
-                            </>
-                          ) : (
-                            <>
-                              <Save className="w-4 h-4 mr-2" />
-                              Save Changes
-                            </>
-                          )}
-                        </Button>
-                      </div>
                     </CardContent>
                   </Card>
 
@@ -898,13 +723,12 @@ const RecruiterProfile = () => {
                               <X className="w-4 h-4" />
                             </Button>
                           </div>
-                          <div className="grid md:grid-cols-4 gap-4">
+                          <div className="grid md:grid-cols-2 gap-4">
                             <div className="space-y-2">
-                              <label className="text-sm font-medium">Title</label>
+                              <label className="text-sm font-medium">Role Title</label>
                               <Input 
                                 value={role.title}
                                 onChange={(e) => updateRole(role.id, 'title', e.target.value)}
-                                placeholder="e.g., Senior Developer"
                                 disabled={isSavingRoles}
                               />
                             </div>
@@ -920,26 +744,13 @@ const RecruiterProfile = () => {
                                 </SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="Engineering">Engineering</SelectItem>
-                                  <SelectItem value="Software Development">Software Development</SelectItem>
-                                  <SelectItem value="Product Management">Product Management</SelectItem>
                                   <SelectItem value="Design">Design</SelectItem>
+                                  <SelectItem value="Product">Product</SelectItem>
                                   <SelectItem value="Marketing">Marketing</SelectItem>
                                   <SelectItem value="Sales">Sales</SelectItem>
-                                  <SelectItem value="Human Resources">Human Resources</SelectItem>
+                                  <SelectItem value="HR">HR</SelectItem>
                                   <SelectItem value="Finance">Finance</SelectItem>
                                   <SelectItem value="Operations">Operations</SelectItem>
-                                  <SelectItem value="Customer Support">Customer Support</SelectItem>
-                                  <SelectItem value="Research & Development">Research & Development</SelectItem>
-                                  <SelectItem value="Quality Assurance">Quality Assurance</SelectItem>
-                                  <SelectItem value="Data Science">Data Science</SelectItem>
-                                  <SelectItem value="DevOps">DevOps</SelectItem>
-                                  <SelectItem value="IT">IT</SelectItem>
-                                  <SelectItem value="Legal">Legal</SelectItem>
-                                  <SelectItem value="Business Development">Business Development</SelectItem>
-                                  <SelectItem value="Content">Content</SelectItem>
-                                  <SelectItem value="Public Relations">Public Relations</SelectItem>
-                                  <SelectItem value="Security">Security</SelectItem>
-                                  <SelectItem value="Supply Chain">Supply Chain</SelectItem>
                                   <SelectItem value="Facilities">Facilities</SelectItem>
                                   <SelectItem value="Other">Other</SelectItem>
                                 </SelectContent>
@@ -1009,11 +820,8 @@ const RecruiterProfile = () => {
               <TabsContent value="verification">
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center space-x-2">
-                      <Shield className="w-5 h-5" />
-                      <span>Verification & Credentials</span>
-                    </CardTitle>
-                    <CardDescription>Build trust with verified credentials and certifications</CardDescription>
+                    <CardTitle>Verification</CardTitle>
+                    <CardDescription>Verify your identity and company details</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-6">
                     <div className="grid md:grid-cols-2 gap-6">
@@ -1021,17 +829,17 @@ const RecruiterProfile = () => {
                         <h4 className="font-medium mb-3">Company Verification</h4>
                         <div className="space-y-3">
                           <div className="flex items-center justify-between">
-                            <span className="text-sm">Business Registration</span>
+                            <span className="text-sm">Business License</span>
                             <Badge variant="outline" className="text-green-600 border-green-200">Verified</Badge>
                           </div>
                           <div className="flex items-center justify-between">
-                            <span className="text-sm">Domain Ownership</span>
+                            <span className="text-sm">Tax ID</span>
                             <Badge variant="outline" className="text-green-600 border-green-200">Verified</Badge>
                           </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm">LinkedIn Company Page</span>
-                            <Badge variant="outline" className="text-yellow-600 border-yellow-200">Pending</Badge>
-                          </div>
+                          <Button variant="outline" size="sm" className="w-full">
+                            <Plus className="w-4 h-4 mr-2" />
+                            Add Document
+                          </Button>
                         </div>
                       </Card>
 
@@ -1073,4 +881,4 @@ const RecruiterProfile = () => {
   );
 };
 
-export default RecruiterProfile;
+export default Profile; 
