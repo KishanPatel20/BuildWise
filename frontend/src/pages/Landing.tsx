@@ -86,7 +86,7 @@ const Landing = () => {
             </Card>
 
             <Card className="w-full sm:w-80 hover:shadow-lg transition-all duration-300 border-2 hover:border-green-200 cursor-pointer group"
-                  onClick={() => navigate('/recruiter/signup')}>
+                  onClick={() => navigate('/web/recruiter/signup')}>
               <CardHeader className="text-center pb-4">
                 <div className="w-16 h-16 bg-gradient-to-r from-green-500 to-green-600 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
                   <Search className="w-8 h-8 text-white" />

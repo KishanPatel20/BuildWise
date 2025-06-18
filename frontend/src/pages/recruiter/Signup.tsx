@@ -32,7 +32,7 @@ const RecruiterSignup = () => {
 
     setIsLoading(true);
     try {
-      const response = await axios.post(`${API_BASE_URL}/recruiter/register/`, {
+      const response = await axios.post(`/recruiter/register/`, {
         username: form.email,
         email: form.email,
         password: form.password,
@@ -203,7 +203,7 @@ const RecruiterSignup = () => {
                 Already have an account?{' '}
                 <Button
                   variant="link"
-                  onClick={() => navigate('/recruiter/login')}
+                  onClick={() => navigate('/login')}
                   className="p-0 text-green-600"
                 >
                   Sign in here
