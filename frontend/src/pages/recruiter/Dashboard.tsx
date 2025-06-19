@@ -13,7 +13,7 @@ import AnalyticsDashboard from '@/components/recruiter/AnalyticsDashboard';
 import PreScreeningSystem from '@/components/recruiter/candidate-ranking/PreScreeningSystem';
 import PersonalizedOutreach from '@/components/recruiter/candidate-ranking/PersonalizedOutreach';
 import WorkflowManagement from '@/components/recruiter/candidate-ranking/WorkflowManagement';
-import ResumeParser from '@/components/recruiter/ai-tools/ResumeParser';
+// import ResumeParser from '@/components/recruiter/ai-tools/ResumeParser';
 import SkillAssessment from '@/components/recruiter/ai-tools/SkillAssessment';
 import InterviewQuestions from '@/components/recruiter/ai-tools/InterviewQuestions';
 import BiasDetection from '@/components/recruiter/ai-tools/BiasDetection';
@@ -27,6 +27,7 @@ import { format } from 'date-fns';
 import { processSearchResultsWithGroq } from '@/services/groqService';
 import CommunicationPipeline from '@/components/recruiter/CommunicationPipeline';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import AICopilot from '@/components/recruiter/ai-tools/AICopilot';
 
 interface SearchAPIResponse {
   results: Array<{
@@ -1378,32 +1379,7 @@ const RecruiterDashboard = () => {
             </TabsContent>
 
             <TabsContent value="ai-tools" className="flex-1 overflow-y-auto">
-              <Tabs defaultValue="resume-parser" className="h-full">
-                <div className="border-b bg-white px-6 py-4">
-                  <TabsList className="grid w-full max-w-3xl grid-cols-4">
-                    <TabsTrigger value="resume-parser">Resume Parser</TabsTrigger>
-                    <TabsTrigger value="skill-assessment">Skill Assessment</TabsTrigger>
-                    <TabsTrigger value="interview-questions">Interview Questions</TabsTrigger>
-                    <TabsTrigger value="bias-detection">Bias Detection</TabsTrigger>
-                  </TabsList>
-                </div>
-
-                <TabsContent value="resume-parser" className="p-6">
-                  <ResumeParser />
-                </TabsContent>
-
-                <TabsContent value="skill-assessment" className="p-6">
-                  <SkillAssessment />
-                </TabsContent>
-
-                <TabsContent value="interview-questions" className="p-6">
-                  <InterviewQuestions />
-                </TabsContent>
-
-                <TabsContent value="bias-detection" className="p-6">
-                  <BiasDetection />
-                </TabsContent>
-              </Tabs>
+              <AICopilot />
             </TabsContent>
           </Tabs>
         </div>
