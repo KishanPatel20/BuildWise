@@ -1,0 +1,13 @@
+{
+    "rewrites": [
+      {
+        "source": "/api/(.*)",
+        "destination": "http://ec2-13-60-240-125.eu-north-1.compute.amazonaws.com/api/$1"
+      },
+      {
+        "source": "/recruiter/(.*)",
+        "destination": "http://ec2-13-60-240-125.eu-north-1.compute.amazonaws.com/recruiter/$1"
+      }
+    ]
+  }
+  

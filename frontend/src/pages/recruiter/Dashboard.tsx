@@ -608,7 +608,7 @@ const RecruiterDashboard = () => {
         throw new Error('Recruiter details not loaded. Please try again.');
       }
 
-      const searchResponse = await fetch(`/recruiter/recruiters/${recruiterDetails.id}/create-workflow/`, {
+      const searchResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/recruiter/recruiters/${recruiterDetails.id}/create-workflow/`, {
         method: 'POST',
         headers: {
           'Authorization': `Token ${recruiterToken}`,
@@ -782,7 +782,7 @@ const RecruiterDashboard = () => {
         }
 
         // Call API to shortlist the candidate
-        const shortlistResponse = await fetch('/recruiter/selected-candidates/', {
+        const shortlistResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/recruiter/selected-candidates/`, {
           method: 'POST',
           headers: {
             'Authorization': `Token ${recruiterToken}`,
@@ -894,7 +894,7 @@ const RecruiterDashboard = () => {
         throw new Error('No authorization token found');
       }
 
-      const response = await fetch(`/recruiter/recruiters/me`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/recruiter/recruiters/me`, {
         headers: {
           'Authorization': `Token ${recruiterToken}`
         }
@@ -920,7 +920,7 @@ const RecruiterDashboard = () => {
         throw new Error('No authorization token found');
       }
 
-      const response = await fetch(`/recruiter/workflows/`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/recruiter/workflows/`, {
         headers: {
           'Authorization': `Token ${recruiterToken}`
         }
@@ -936,7 +936,7 @@ const RecruiterDashboard = () => {
       // Fetch details for each workflow
       const detailsPromises = data.map(async (workflow: Workflow) => {
         const detailsResponse = await fetch(
-          `/recruiter/workflows/${workflow.id}/candidates`,
+          `${import.meta.env.VITE_API_BASE_URL}/recruiter/workflows/${workflow.id}/candidates`,
           {
             headers: {
               'Authorization': `Token ${recruiterToken}`
