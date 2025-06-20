@@ -132,7 +132,8 @@ interface Candidate {
 }
 
 interface ShortlistedCandidate {
-  user_token: string;
+  id: string;
+  candidate_token: string;
   name: string;
   role: string;
   matchScore: number;
@@ -608,7 +609,7 @@ const RecruiterDashboard = () => {
         throw new Error('Recruiter details not loaded. Please try again.');
       }
 
-      const searchResponse = await fetch(`/recruiter/recruiters/${recruiterDetails.id}/create-workflow/`, {
+      const searchResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/recruiter/recruiters/${recruiterDetails.id}/create-workflow/`, {
         method: 'POST',
         headers: {
           'Authorization': `Token ${recruiterToken}`,
@@ -652,64 +653,79 @@ const RecruiterDashboard = () => {
       const refinedScores = await processSearchResultsWithGroq(searchResults);
 
       // Process candidates with refined scores and workflow candidate IDs
-      const processedCandidates = await Promise.all(
-        searchResults.results.map(async (result, index) => {
-          const refinedScore = refinedScores[index];
-          const candidateDetails = await fetchCandidateDetails(result.user_token);
-          
-          // Find matching candidate from workflow response to get the ID
-          const workflowCandidate = searchResults.workflow?.matched_candidates.find(
-            c => c.candidate_token === result.user_token
-          );
-          
-          // If we have detailed candidate information, use it with refined score
-          if (candidateDetails) {
-            return {
-              ...candidateDetails,
-              id: result.user_token,
-              candidate_token: result.user_token,
-              matchScore: refinedScore.matchScore,
-              aiInsight: refinedScore.reasoning,
-              matchReasons: refinedScore.topMatches,
-              considerations: refinedScore.considerations,
-              status: 'new' as const,
-              source: 'AI Search'
-            };
-          }
+      const processedCandidates = searchResults.results.map((result, index) => {
+        const refinedScore = refinedScores[index];
+        const candidateDetails = result.candidate_details;
 
-          // Fallback to basic information with refined score
+        const candidateId = candidateDetails?.id;
+        const candidateToken = result.user_token;
+
+        if (!candidateId || !candidateToken) {
+          console.warn('Skipping candidate due to missing ID or token', result);
+          return null;
+        }
+
+        if (candidateDetails) {
           return {
-            id: result.user_token,
-            candidate_token: result.user_token,
-            name: result.name,
-            role: result.current_role,
-            title: result.current_role,
-            experience: 'Not specified',
-            location: 'Not specified',
-            skills: [],
-            topMatchedSkills: refinedScore.topMatches,
-            skillGaps: [],
-            score: refinedScore.matchScore,
+            id: candidateId.toString(),
+            candidate_token: candidateToken,
+            name: candidateDetails.name || result.name,
+            email: candidateDetails.email || result.email,
+            title: candidateDetails.current_role || result.current_role,
+            experience: candidateDetails.experience ? `${candidateDetails.experience} years` : 'Not specified',
+            skills: candidateDetails.skills ? candidateDetails.skills.split(',').map(s => s.trim()) : [],
+            location: candidateDetails.preferred_locations?.join(', ') || 'Not specified',
+            company: candidateDetails.company || result.company || 'Not specified',
             matchScore: refinedScore.matchScore,
-            avatar: '/placeholder.svg',
-            summary: refinedScore.reasoning,
             aiInsight: refinedScore.reasoning,
-            email: result.email,
-            phone: '',
-            status: 'new' as const,
-            company: result.company || 'Not specified',
-            education: '',
-            source: 'AI Search',
-            appliedDate: new Date().toISOString().split('T')[0],
-            availability: 'Not specified',
-            seniorityLevel: 'Not specified',
-            lastContact: undefined,
             matchReasons: refinedScore.topMatches,
             considerations: refinedScore.considerations,
-            projects: []
+            status: 'new' as const,
+            source: 'AI Search',
+            summary: refinedScore.reasoning,
+            phone: '',
+            education: '',
+            appliedDate: new Date().toISOString().split('T')[0],
+            lastContact: undefined,
+            availability: 'Not specified',
+            seniorityLevel: 'Not specified',
+            topMatchedSkills: refinedScore.topMatches,
+            skillGaps: [],
+            projects: [],
+            avatar: '/placeholder.svg',
           };
-        })
-      );
+        }
+
+        // Fallback
+        return {
+          id: candidateId.toString(),
+          candidate_token: candidateToken,
+          name: result.name,
+          title: result.current_role,
+          experience: 'Not specified',
+          location: 'Not specified',
+          skills: [],
+          topMatchedSkills: refinedScore.topMatches,
+          skillGaps: [],
+          matchScore: refinedScore.matchScore,
+          avatar: '/placeholder.svg',
+          summary: refinedScore.reasoning,
+          aiInsight: refinedScore.reasoning,
+          email: result.email,
+          phone: '',
+          status: 'new' as const,
+          company: result.company || 'Not specified',
+          education: '',
+          source: 'AI Search',
+          appliedDate: new Date().toISOString().split('T')[0],
+          availability: 'Not specified',
+          seniorityLevel: 'Not specified',
+          lastContact: undefined,
+          matchReasons: refinedScore.topMatches,
+          considerations: refinedScore.considerations,
+          projects: []
+        };
+      }).filter(Boolean) as Candidate[];
 
       setFilteredCandidates(processedCandidates);
 
@@ -773,7 +789,7 @@ const RecruiterDashboard = () => {
       const candidate = filteredCandidates.find(c => c.id === candidateId);
       if (!candidate) return;
 
-      const isCurrentlyShortlisted = shortlistedCandidates.some(c => c.user_token === candidateId);
+      const isCurrentlyShortlisted = shortlistedCandidates.some(c => c.candidate_token === candidate.candidate_token);
 
       if (!isCurrentlyShortlisted) {
         // Use the stored workflow ID
@@ -782,7 +798,7 @@ const RecruiterDashboard = () => {
         }
 
         // Call API to shortlist the candidate
-        const shortlistResponse = await fetch('/recruiter/selected-candidates/', {
+        const shortlistResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/recruiter/selected-candidates/`, {
           method: 'POST',
           headers: {
             'Authorization': `Token ${recruiterToken}`,
@@ -804,7 +820,8 @@ const RecruiterDashboard = () => {
         // Update local state
         setShortlistedCandidates(prev => {
           const newShortlisted = [...prev, {
-            user_token: candidate.candidate_token,
+            id: candidate.id,
+            candidate_token: candidate.candidate_token,
             name: candidate.name,
             role: candidate.title,
             matchScore: candidate.matchScore
@@ -817,7 +834,7 @@ const RecruiterDashboard = () => {
       } else {
         // Remove from shortlist
         setShortlistedCandidates(prev => {
-          const newShortlisted = prev.filter(c => c.user_token !== candidate.candidate_token);
+          const newShortlisted = prev.filter(c => c.candidate_token !== candidate.candidate_token);
           saveShortlistedCandidates(newShortlisted);
           return newShortlisted;
         });
@@ -881,7 +898,7 @@ const RecruiterDashboard = () => {
 
   const getShortlistedCandidatesData = () => {
     return candidatesToShow.filter(candidate => 
-      shortlistedCandidates.some(c => c.user_token === candidate.id)
+      shortlistedCandidates.some(c => c.candidate_token === candidate.candidate_token)
     );
   };
 
@@ -894,7 +911,7 @@ const RecruiterDashboard = () => {
         throw new Error('No authorization token found');
       }
 
-      const response = await fetch(`/recruiter/recruiters/me`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/recruiter/recruiters/me`, {
         headers: {
           'Authorization': `Token ${recruiterToken}`
         }
@@ -920,7 +937,7 @@ const RecruiterDashboard = () => {
         throw new Error('No authorization token found');
       }
 
-      const response = await fetch(`/recruiter/workflows/`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/recruiter/workflows/`, {
         headers: {
           'Authorization': `Token ${recruiterToken}`
         }
@@ -936,7 +953,7 @@ const RecruiterDashboard = () => {
       // Fetch details for each workflow
       const detailsPromises = data.map(async (workflow: Workflow) => {
         const detailsResponse = await fetch(
-          `/recruiter/workflows/${workflow.id}/candidates`,
+          `${import.meta.env.VITE_API_BASE_URL}/recruiter/workflows/${workflow.id}/candidates`,
           {
             headers: {
               'Authorization': `Token ${recruiterToken}`
@@ -1308,7 +1325,7 @@ const RecruiterDashboard = () => {
                             isSelected={selectedCandidates.includes(candidate.id)}
                             onSelect={handleCandidateSelect}
                             onShortlist={toggleShortlist}
-                            isShortlisted={shortlistedCandidates.some(c => c.user_token === candidate.id)}
+                            isShortlisted={shortlistedCandidates.some(c => c.candidate_token === candidate.candidate_token)}
                           />
                         ))}
                       </div>

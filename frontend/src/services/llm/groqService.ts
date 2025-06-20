@@ -182,12 +182,20 @@ export const generateEmailContent = async ({
   candidateName,
   candidateRole,
   selectedQuestions,
-  tone
+  tone,
+  candidateId,
+  candidateToken,
+  recruiterId,
+  recruiterToken
 }: {
   candidateName: string;
   candidateRole: string;
   selectedQuestions: Question[];
   tone: 'friendly' | 'professional' | 'direct';
+  candidateId: string;
+  candidateToken: string;
+  recruiterId: string;
+  recruiterToken: string;
 }): Promise<string> => {
   try {
     const toneText = {
@@ -196,29 +204,7 @@ export const generateEmailContent = async ({
       direct: 'clear and concise'
     }[tone];
 
-    // Create a unique token (you might want to use a more sophisticated method in production)
-    const generateToken = () => {
-      const timestamp = Date.now().toString(36);
-      const randomStr = Math.random().toString(36).substring(2, 8);
-      return `${timestamp}-${randomStr}`;
-    };
-
-    // Create interview session payload
-    const interviewSession = {
-      token: generateToken(),
-      candidateId: candidateName.toLowerCase().replace(/\s+/g, '-'),
-      candidateName,
-      candidateRole,
-      questions: selectedQuestions.map(q => q.question),
-      createdAt: new Date().toISOString(),
-      expiryTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 days expiry
-    };
-
-    // Encode the session data to base64
-    const encodedSession = btoa(JSON.stringify(interviewSession));
-    
-    // Create the interview link with the token
-    const interviewLink = `https://recorder-tau.vercel.app/interview/${interviewSession.token}`;
+    const interviewLink = `https://recorder-tau.vercel.app/interview/?candidate_id=${candidateId}&candidate_token=${candidateToken}&recruiter_id=${recruiterId}&recruiter_token=${recruiterToken}`;
 
     const systemPrompt = `You are an expert technical recruiter crafting personalized outreach messages.
 Your task is to create a compelling message that:

@@ -69,7 +69,7 @@ const Login = () => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      const response = await axios.post(`/recruiter/login/`, {
+      const response = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/recruiter/login/`, {
         username: recruiterForm.email,
         password: recruiterForm.password
       });

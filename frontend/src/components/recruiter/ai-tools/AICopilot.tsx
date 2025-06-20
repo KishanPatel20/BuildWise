@@ -138,7 +138,7 @@ const AICopilot = () => {
         });
       }, 200);
 
-      const response = await fetch('/recruiter/multi-resume-analysis/', {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/recruiter/multi-resume-analysis/`, {
         method: 'POST',
         headers: {
           'Authorization': `Token ${recruiterToken}`
