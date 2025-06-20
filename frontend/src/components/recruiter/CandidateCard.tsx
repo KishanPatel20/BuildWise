@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 import CandidatePortfolio from './CandidatePortfolio';
 
 interface Candidate {
-  id: string;
+  id: number;
   name: string;
   email: string;
   phone?: string;
@@ -26,8 +26,8 @@ interface Candidate {
   experience: number;
   skills: string | string[];
   education?: string;
-  company: string;
-  matchScore: number;
+  company?: string;
+  matchScore?: number;
   avatar?: string;
   summary?: string;
   status: 'new' | 'shortlisted' | 'screened' | 'interviewing' | 'offer' | 'hired' | 'rejected';
@@ -67,6 +67,10 @@ interface Candidate {
   linkedin_profile?: string;
   github_profile?: string;
   portfolio_link?: string;
+  resume?: string;
+  employment_type_preferences?: string;
+  preferred_locations?: string;
+  is_actively_looking?: boolean;
 }
 
 const SHORTLISTED_CANDIDATES_KEY = 'shortlisted_candidates';
@@ -102,7 +106,7 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
 
   useEffect(() => {
     const storedCandidates = getShortlistedCandidates();
-    const isStoredShortlisted = storedCandidates.some(c => c.user_token === candidate.id);
+    const isStoredShortlisted = storedCandidates.some(c => c.user_token === candidate.id.toString());
     setLocalIsShortlisted(isStoredShortlisted);
     if (isStoredShortlisted) {
       setIsCollapsed(true);
@@ -117,7 +121,7 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
   }, [isShortlisted]);
 
   const handleShortlist = () => {
-    onShortlist(candidate.id);
+    onShortlist(candidate.id.toString());
     const newShortlistedStatus = !localIsShortlisted;
     setLocalIsShortlisted(newShortlistedStatus);
     setIsCollapsed(newShortlistedStatus);
@@ -264,10 +268,10 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
                 variant="outline" 
                 className={cn(
                   "px-3 py-1 text-sm",
-                  getMatchScoreColor(candidate.matchScore)
+                  getMatchScoreColor(candidate.matchScore || 0)
                 )}
               >
-                {candidate.matchScore}% Match
+                {candidate.matchScore ? `${candidate.matchScore}% Match` : 'No Match Score'}
               </Badge>
             </div>
           </div>
@@ -277,7 +281,7 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
             <div className="bg-gray-50 rounded-lg p-3">
               <div className="flex items-center space-x-2">
                 <GraduationCap className="w-4 h-4 text-purple-500" />
-                <span className="text-sm font-medium">{candidate.experience} years</span>
+                <span className="text-sm font-medium">{candidate.experience} </span>
               </div>
             </div>
             <div className="bg-gray-50 rounded-lg p-3">
@@ -366,7 +370,7 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
               </Button>
               <div className="flex items-center space-x-2 bg-gray-50 px-3 py-1 rounded-md">
                 <GraduationCap className="w-4 h-4 text-purple-500" />
-                <span className="text-sm font-medium">{candidate.experience} years</span>
+                <span className="text-sm font-medium">{candidate.experience} </span>
               </div>
             </div>
             <div className="flex items-center space-x-2">
@@ -400,7 +404,6 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
               <div className="flex items-start gap-3">
                 <div className="flex-1">
                   <p className="text-sm text-blue-800">{candidate.aiInsight}</p>
-                  
                   {/* Match Reasons */}
                   {candidate.matchReasons && candidate.matchReasons.length > 0 && (
                     <div className="mt-3">
@@ -415,7 +418,6 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
                       </ul>
                     </div>
                   )}
-
                   {/* Considerations */}
                   {candidate.considerations && candidate.considerations.length > 0 && (
                     <div className="mt-3">

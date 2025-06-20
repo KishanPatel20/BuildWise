@@ -652,82 +652,98 @@ const RecruiterDashboard = () => {
       updateSearchProgress('Analyzing matches...', 70, 'Using AI to refine match scores');
       const refinedScores = await processSearchResultsWithGroq(searchResults);
 
-      // Process candidates with refined scores and workflow candidate IDs
-      const processedCandidates = searchResults.results.map((result, index) => {
-        const refinedScore = refinedScores[index];
-        const candidateDetails = result.candidate_details;
+      // Fetch all candidate profiles in parallel using their candidate_token
+      const matchedCandidates = searchResults.workflow?.matched_candidates || [];
+      const candidateProfiles = await Promise.all(
+        matchedCandidates.map(async (candidate, index) => {
+          try {
+            const res = await fetch(`${API_BASE_URL}/api/candidates/me/`, {
+              headers: {
+                'Authorization': `Token ${candidate.candidate_token}`
+              }
+            });
+            if (!res.ok) throw new Error('Profile fetch failed');
+            const profile = await res.json();
+            // Use refinedScores[index] for matchScore, aiInsight, etc.
+            return {
+              id: profile.id.toString(),
+              candidate_token: candidate.candidate_token,
+              name: profile.name || candidate.name,
+              email: profile.email || candidate.email,
+              title: profile.current_job_title || candidate.current_role,
+              experience: profile.experience ? `${profile.experience} years` : 'Not specified',
+              skills: profile.skills ? (typeof profile.skills === 'string' ? profile.skills.split(',').map((s: string) => s.trim()) : profile.skills) : [],
+              location: profile.preferred_locations || profile.location || 'Not specified',
+              company: profile.current_company || profile.company || candidate.company || 'Not specified',
+              matchScore: refinedScores[index]?.matchScore || candidate.match_score,
+              aiInsight: refinedScores[index]?.reasoning || '',
+              matchReasons: refinedScores[index]?.topMatches || [],
+              considerations: refinedScores[index]?.considerations || [],
+              status: 'new' as const,
+              source: 'AI Search',
+              summary: refinedScores[index]?.reasoning || '',
+              phone: profile.phone || '',
+              education: profile.education || '',
+              appliedDate: profile.created_at ? profile.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
+              lastContact: undefined,
+              availability: profile.availability || 'Not specified',
+              seniorityLevel: profile.seniorityLevel || 'Not specified',
+              topMatchedSkills: refinedScores[index]?.topMatches || [],
+              skillGaps: [],
+              projects: profile.projects || [],
+              avatar: '/placeholder.svg',
+              work_experiences: profile.work_experiences || [],
+              resume: profile.resume,
+              employment_type_preferences: profile.employment_type_preferences,
+              preferred_locations: profile.preferred_locations,
+              is_actively_looking: profile.is_actively_looking,
+              github_profile: profile.github_profile,
+              linkedin_profile: profile.linkedin_profile,
+              portfolio_link: profile.portfolio_link,
+            };
+          } catch (err) {
+            // Fallback to candidate basic info if fetch fails
+            return {
+              id: candidate.id.toString(),
+              candidate_token: candidate.candidate_token,
+              name: candidate.name,
+              email: candidate.email,
+              title: candidate.current_role,
+              experience: 'Not specified',
+              skills: [],
+              location: candidate.location || 'Not specified',
+              company: candidate.company || 'Not specified',
+              matchScore: refinedScores[index]?.matchScore || candidate.match_score,
+              aiInsight: refinedScores[index]?.reasoning || '',
+              matchReasons: refinedScores[index]?.topMatches || [],
+              considerations: refinedScores[index]?.considerations || [],
+              status: 'new' as const,
+              source: 'AI Search',
+              summary: refinedScores[index]?.reasoning || '',
+              phone: '',
+              education: '',
+              appliedDate: new Date().toISOString().split('T')[0],
+              lastContact: undefined,
+              availability: 'Not specified',
+              seniorityLevel: 'Not specified',
+              topMatchedSkills: refinedScores[index]?.topMatches || [],
+              skillGaps: [],
+              projects: [],
+              avatar: '/placeholder.svg',
+              work_experiences: [],
+              resume: '',
+              employment_type_preferences: '',
+              preferred_locations: '',
+              is_actively_looking: false,
+              github_profile: '',
+              linkedin_profile: '',
+              portfolio_link: '',
+            };
+          }
+        })
+      );
 
-        const candidateId = candidateDetails?.id;
-        const candidateToken = result.user_token;
-
-        if (!candidateId || !candidateToken) {
-          console.warn('Skipping candidate due to missing ID or token', result);
-          return null;
-        }
-
-        if (candidateDetails) {
-          return {
-            id: candidateId.toString(),
-            candidate_token: candidateToken,
-            name: candidateDetails.name || result.name,
-            email: candidateDetails.email || result.email,
-            title: candidateDetails.current_role || result.current_role,
-            experience: candidateDetails.experience ? `${candidateDetails.experience} years` : 'Not specified',
-            skills: candidateDetails.skills ? candidateDetails.skills.split(',').map(s => s.trim()) : [],
-            location: candidateDetails.preferred_locations?.join(', ') || 'Not specified',
-            company: candidateDetails.company || result.company || 'Not specified',
-            matchScore: refinedScore.matchScore,
-            aiInsight: refinedScore.reasoning,
-            matchReasons: refinedScore.topMatches,
-            considerations: refinedScore.considerations,
-            status: 'new' as const,
-            source: 'AI Search',
-            summary: refinedScore.reasoning,
-            phone: '',
-            education: '',
-            appliedDate: new Date().toISOString().split('T')[0],
-            lastContact: undefined,
-            availability: 'Not specified',
-            seniorityLevel: 'Not specified',
-            topMatchedSkills: refinedScore.topMatches,
-            skillGaps: [],
-            projects: [],
-            avatar: '/placeholder.svg',
-          };
-        }
-
-        // Fallback
-        return {
-          id: candidateId.toString(),
-          candidate_token: candidateToken,
-          name: result.name,
-          title: result.current_role,
-          experience: 'Not specified',
-          location: 'Not specified',
-          skills: [],
-          topMatchedSkills: refinedScore.topMatches,
-          skillGaps: [],
-          matchScore: refinedScore.matchScore,
-          avatar: '/placeholder.svg',
-          summary: refinedScore.reasoning,
-          aiInsight: refinedScore.reasoning,
-          email: result.email,
-          phone: '',
-          status: 'new' as const,
-          company: result.company || 'Not specified',
-          education: '',
-          source: 'AI Search',
-          appliedDate: new Date().toISOString().split('T')[0],
-          availability: 'Not specified',
-          seniorityLevel: 'Not specified',
-          lastContact: undefined,
-          matchReasons: refinedScore.topMatches,
-          considerations: refinedScore.considerations,
-          projects: []
-        };
-      }).filter(Boolean) as Candidate[];
-
-      setFilteredCandidates(processedCandidates);
+      setFilteredCandidates(candidateProfiles);
 
       // Store search results with refined scores
       setLastSearchResults({
@@ -742,14 +758,14 @@ const RecruiterDashboard = () => {
         workflow: searchResults.workflow
       });
 
-      updateSearchProgress('Search complete!', 100, `Found ${processedCandidates.length} matching candidates`);
+      updateSearchProgress('Search complete!', 100, `Found ${candidateProfiles.length} matching candidates`);
       
       // Show success message with refined scores
       toast.success(
         <div className="space-y-2">
           <p>Search completed successfully!</p>
           <p className="text-sm text-gray-600">
-            Found {processedCandidates.length} matching candidates
+            Found {candidateProfiles.length} matching candidates
           </p>
           <p className="text-xs text-gray-500">
             Average match score: {

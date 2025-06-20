@@ -28,6 +28,9 @@ import {
   Eye,
   ExternalLink,
   Star,
+  CheckCircle,
+  AlertTriangle,
+  FileText,
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -119,20 +122,31 @@ const CandidatePortfolio: React.FC<CandidatePortfolioProps> = ({
                   )}
                 </div>
               </div>
-              <div className="mt-2 flex flex-wrap gap-4 text-sm text-gray-600">
-                <div className="flex items-center gap-1">
-                  <MapPin className="w-4 h-4" />
-                  <span>{candidate.location}</span>
-                </div>
+              {/* --- Detailed Info Section --- */}
+          <div className="mt-2 space-y-2">
+            {/* Contact & Profile */}
+            <div>
+              {/* <h4 className="text-sm font-medium text-gray-700 mb-2">Contact & Profile</h4> */}
+              <div className="flex flex-wrap gap-4 text-sm text-gray-600">
                 <div className="flex items-center gap-1">
                   <Mail className="w-4 h-4" />
                   <span>{candidate.email}</span>
                 </div>
-                <div className="flex items-center gap-1">
-                  <Phone className="w-4 h-4" />
-                  <span>{candidate.phone}</span>
-                </div>
+                {candidate.phone && (
+                  <div className="flex items-center gap-1">
+                    <Phone className="w-4 h-4" />
+                    <span>{candidate.phone}</span>
+                  </div>
+                )}
+                {candidate.resume && (
+                  <div className="flex items-center gap-1">
+                    <FileText className="w-4 h-4" />
+                    <a href={candidate.resume} target="_blank" rel="noopener noreferrer" className="underline">Resume</a>
+                  </div>
+                )}
               </div>
+            </div>
+          </div>
             </div>
           </div>
 
@@ -218,9 +232,17 @@ const CandidatePortfolio: React.FC<CandidatePortfolioProps> = ({
               {candidate.projects?.map((project: any, index: number) => (
                 <div key={index} className="border rounded-lg p-4">
                   <div className="flex justify-between items-start mb-2">
-                    <h3 className="text-lg font-semibold">{project.name}</h3>
-                    {project.url && (
-                      <a href={project.url} target="_blank" rel="noopener noreferrer">
+                    <h3 className="text-lg font-semibold">{project.title || project.name}</h3>
+                    {project.github_link && (
+                      <a href={project.github_link} target="_blank" rel="noopener noreferrer">
+                        <Button variant="ghost" size="sm" className="gap-2">
+                          <Github className="w-4 h-4" />
+                          GitHub
+                        </Button>
+                      </a>
+                    )}
+                    {project.live_link && (
+                      <a href={project.live_link} target="_blank" rel="noopener noreferrer">
                         <Button variant="ghost" size="sm" className="gap-2">
                           <ExternalLink className="w-4 h-4" />
                           View Project
@@ -246,7 +268,12 @@ const CandidatePortfolio: React.FC<CandidatePortfolioProps> = ({
                 <div>
                   <h3 className="text-lg font-semibold mb-3">Technical Skills</h3>
                   <div className="flex flex-wrap gap-2">
-                    {candidate.skills?.split(',').map((skill: string, index: number) => (
+                    {(Array.isArray(candidate.skills)
+                      ? candidate.skills
+                      : typeof candidate.skills === "string"
+                        ? candidate.skills.split(",")
+                        : []
+                    ).map((skill: string, index: number) => (
                       <Badge key={index} variant="secondary">{skill.trim()}</Badge>
                     ))}
                   </div>
@@ -254,7 +281,12 @@ const CandidatePortfolio: React.FC<CandidatePortfolioProps> = ({
                 <div>
                   <h3 className="text-lg font-semibold mb-3">Soft Skills</h3>
                   <div className="flex flex-wrap gap-2">
-                    {candidate.soft_skills?.split(',').map((skill: string, index: number) => (
+                    {(Array.isArray(candidate.soft_skills)
+                      ? candidate.soft_skills
+                      : typeof candidate.soft_skills === "string"
+                        ? candidate.soft_skills.split(",")
+                        : []
+                    ).map((skill: string, index: number) => (
                       <Badge key={index} variant="secondary">{skill.trim()}</Badge>
                     ))}
                   </div>
@@ -264,40 +296,48 @@ const CandidatePortfolio: React.FC<CandidatePortfolioProps> = ({
 
             {/* Preferences Tab */}
             <TabsContent value="preferences" className="space-y-6">
-              <div className="grid grid-cols-2 gap-6">
-                <div>
-                  <h3 className="text-lg font-semibold mb-3">Work Preferences</h3>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Clock className="w-4 h-4" />
-                      <span>Availability: {candidate.availability || 'Not specified'}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <MapPin className="w-4 h-4" />
-                      <span>Location: {candidate.location || 'Not specified'}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4" />
-                      <span>Notice Period: {candidate.notice_period || 'Not specified'}</span>
-                    </div>
+              {/* Merged Work Preferences Section */}
+              <div>
+                <h3 className="text-lg font-semibold mb-3">Work Preferences</h3>
+                <div className="flex flex-wrap gap-4 text-sm text-gray-600">
+                  <div className="flex items-center gap-1">
+                    <Clock className="w-4 h-4" />
+                    <span>Availability: {candidate.availability || 'Not specified'}</span>
                   </div>
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold mb-3">Additional Information</h3>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <GraduationCap className="w-4 h-4" />
-                      <span>Education: {candidate.education || 'Not specified'}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Award className="w-4 h-4" />
-                      <span>Seniority Level: {candidate.seniorityLevel || 'Not specified'}</span>
-                    </div>
+                  <div className="flex items-center gap-1">
+                    <GraduationCap className="w-4 h-4" />
+                    <span>Education: {candidate.education || 'Not specified'}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Award className="w-4 h-4" />
+                    <span>Seniority Level: {candidate.seniorityLevel || 'Not specified'}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Briefcase className="w-4 h-4" />
+                    <span>Employment Type: {candidate.employment_type_preferences || 'Not specified'}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <MapPin className="w-4 h-4" />
+                    <span>Preferred Locations: {candidate.preferred_locations || 'Not specified'}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Star className="w-4 h-4" />
+                    <span>Actively Looking: {candidate.is_actively_looking ? 'Yes' : 'No'}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <MapPin className="w-4 h-4" />
+                    <span>Location: {candidate.location || 'Not specified'}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Calendar className="w-4 h-4" />
+                    <span>Notice Period: {candidate.notice_period || 'Not specified'}</span>
                   </div>
                 </div>
               </div>
             </TabsContent>
           </Tabs>
+
+          
         </div>
       </DialogContent>
     </Dialog>
