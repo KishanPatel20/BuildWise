@@ -204,7 +204,7 @@ export const generateEmailContent = async ({
       direct: 'clear and concise'
     }[tone];
 
-    const interviewLink = `https://recorder-tau.vercel.app/interview/?candidate_id=${candidateId}&candidate_token=${candidateToken}&recruiter_id=${recruiterId}&recruiter_token=${recruiterToken}`;
+    const interviewLink = `http://ec2-13-60-240-125.eu-north-1.compute.amazonaws.com:5173/?candidate_id=${candidateId}&candidate_token=${candidateToken}&recruiter_id=${recruiterId}&recruiter_token=${recruiterToken}`;
 
     const systemPrompt = `You are an expert technical recruiter crafting personalized outreach messages.
 Your task is to create a compelling message that:
