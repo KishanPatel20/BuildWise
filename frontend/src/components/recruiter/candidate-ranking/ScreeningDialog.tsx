@@ -19,6 +19,7 @@ interface Candidate {
   avatar?: string;
   role: string;
   matchScore: number;
+  candidate_token: string;
 }
 
 interface ScreeningDialogProps {
@@ -49,6 +50,12 @@ const ScreeningDialog = ({ candidate, open, onOpenChange }: ScreeningDialogProps
   const generateQuestions = async () => {
     if (!candidate || !questionPrompt) {
       toast.error('Please select a candidate and enter a question prompt');
+      return;
+    }
+
+    if (!candidate.candidate_token) {
+      toast.error('Candidate token is missing. Cannot proceed.');
+      setIsGenerating(false);
       return;
     }
 
@@ -96,22 +103,30 @@ const ScreeningDialog = ({ candidate, open, onOpenChange }: ScreeningDialogProps
       return;
     }
 
+    if (!candidate.candidate_token || typeof candidate.candidate_token !== 'string' || candidate.candidate_token.trim() === '') {
+      console.error('Candidate object missing candidate_token:', candidate);
+      toast.error('Candidate token is missing. Cannot proceed.');
+      return;
+    }
+
     setIsGenerating(true);
     try {
       const questionsForApi = selectedQuestions.map(q => q.question);
+      const payload = {
+        round: 'pre-screening',
+        questions: questionsForApi,
+        candidate_token: candidate.candidate_token,
+        answers: [],
+      };
+      console.log('Sending screening payload:', payload);
 
       const roundQaResponse = await fetch('http://ec2-13-60-240-125.eu-north-1.compute.amazonaws.com/recruiter/round-qa/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Token a4ec681ce3246884b88beb7232a79a0bda006d41',
+          'Authorization': `Token ${sessionStorage.getItem('recruiterToken')}`,
         },
-        body: JSON.stringify({
-          candidate_token: candidate.id,
-          round: 'pre-screening',
-          questions: questionsForApi,
-          answers: [],
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!roundQaResponse.ok) {
@@ -137,7 +152,7 @@ const ScreeningDialog = ({ candidate, open, onOpenChange }: ScreeningDialogProps
         selectedQuestions,
         tone: emailTone,
         candidateId: candidateId.toString(),
-        candidateToken: candidate.id,
+        candidateToken: candidate.candidate_token,
         recruiterId: recruiterId.toString(),
         recruiterToken,
       });

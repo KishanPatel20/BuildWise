@@ -32,6 +32,7 @@ interface Candidate {
     nextSteps?: string[];
     interviewDate?: string;
   };
+  candidate_token?: string;
 }
 
 // Mock data for demonstration
@@ -45,7 +46,8 @@ const MOCK_CANDIDATES: Candidate[] = [
     status: 'shortlisted',
     lastUpdated: new Date().toISOString(),
     avatar: 'https://i.pravatar.cc/150?img=1',
-    notes: ['Strong React experience', 'Open to relocation']
+    notes: ['Strong React experience', 'Open to relocation'],
+    candidate_token: '1'
   },
   {
     id: '2',
@@ -60,7 +62,8 @@ const MOCK_CANDIDATES: Candidate[] = [
       score: 85,
       feedback: 'Strong technical background, needs clarification on system design experience',
       nextSteps: ['Schedule technical interview', 'Review system design portfolio']
-    }
+    },
+    candidate_token: '2'
   },
   {
     id: '3',
@@ -74,7 +77,8 @@ const MOCK_CANDIDATES: Candidate[] = [
     stageDetails: {
       interviewDate: '2024-03-25T14:00:00Z',
       nextSteps: ['Prepare system design questions', 'Review coding challenge']
-    }
+    },
+    candidate_token: '3'
   },
   {
     id: '4',
@@ -88,7 +92,8 @@ const MOCK_CANDIDATES: Candidate[] = [
     stageDetails: {
       feedback: 'Technical interview passed with flying colors',
       nextSteps: ['Discuss salary expectations', 'Review benefits package']
-    }
+    },
+    candidate_token: '4'
   },
   {
     id: '5',
@@ -103,7 +108,8 @@ const MOCK_CANDIDATES: Candidate[] = [
       score: 92,
       feedback: 'Excellent cultural fit, strong leadership skills',
       nextSteps: ['Prepare offer letter', 'Schedule onboarding']
-    }
+    },
+    candidate_token: '5'
   }
 ];
 
@@ -131,18 +137,21 @@ const CommunicationPipeline = () => {
     const stored = sessionStorage.getItem(SHORTLISTED_CANDIDATES_KEY);
     if (stored) {
       const shortlistedCandidates = JSON.parse(stored);
+      console.log('Loaded shortlistedCandidates from session:', shortlistedCandidates);
       // Transform the data to match our pipeline format
       const pipelineCandidates = shortlistedCandidates.map((c: any) => ({
-        id: c.user_token,
+        id: c.user_token || c.candidate_token,
         name: c.name,
         email: c.email,
         avatar: c.avatar,
         role: c.role,
         matchScore: c.matchScore,
-        status: 'shortlisted',
-        lastUpdated: new Date().toISOString(),
-        notes: []
+        status: c.status || 'shortlisted',
+        lastUpdated: c.lastUpdated || new Date().toISOString(),
+        notes: c.notes || [],
+        candidate_token: c.candidate_token || c.user_token || c.id || '',
       }));
+      console.log('Pipeline candidates after mapping:', pipelineCandidates.map(c => ({id: c.id, candidate_token: c.candidate_token})));
       setCandidates(prev => [...pipelineCandidates, ...prev]);
     }
   }, []);
@@ -235,11 +244,16 @@ const CommunicationPipeline = () => {
 
     setIsGenerating(true);
     try {
+      const recruiterToken = sessionStorage.getItem('recruiterToken') || '';
       const email = await generateEmailContent({
         candidateName: selectedCandidate!.name,
         candidateRole: selectedCandidate!.role,
         selectedQuestions,
-        tone: emailTone
+        tone: emailTone,
+        candidateId: selectedCandidate!.candidate_token || selectedCandidate!.id,
+        candidateToken: selectedCandidate!.candidate_token || selectedCandidate!.id,
+        recruiterId: '', // If you have recruiterId, use it here
+        recruiterToken,
       });
       setEmailContent(email);
       setCurrentStep('email');
@@ -268,6 +282,12 @@ const CommunicationPipeline = () => {
     } finally {
       setIsSending(false);
     }
+  };
+
+  const handleSelectCandidate = (candidate: Candidate) => {
+    // Log to verify
+    console.log('Selected candidate for dialog:', candidate);
+    setSelectedCandidate(candidate);
   };
 
   const renderPipelineColumn = (status: Candidate['status'], title: string) => {
@@ -299,7 +319,10 @@ const CommunicationPipeline = () => {
             <Card 
               key={candidate.id}
               className="cursor-pointer hover:shadow-md transition-all duration-200 border-gray-100"
-              onClick={() => setSelectedCandidate(candidate)}
+              onClick={() => {
+                handleSelectCandidate(candidate);
+                setShowDialog(true);
+              }}
             >
               <CardContent className="p-4">
                 <div className="flex items-start space-x-3">
@@ -359,7 +382,7 @@ const CommunicationPipeline = () => {
                     className="flex-1"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setSelectedCandidate(candidate);
+                      handleSelectCandidate(candidate);
                       setShowDialog(true);
                     }}
                   >
@@ -437,7 +460,7 @@ const CommunicationPipeline = () => {
 
       {/* Combined Screening Dialog */}
       <ScreeningDialog
-        candidate={selectedCandidate}
+        candidate={selectedCandidate ? { ...selectedCandidate, candidate_token: selectedCandidate.candidate_token || selectedCandidate.id } : null}
         open={showDialog}
         onOpenChange={setShowDialog}
       />
