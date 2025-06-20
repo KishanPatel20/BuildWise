@@ -1030,12 +1030,12 @@ const RecruiterDashboard = () => {
           
           {/* Enhanced Right Side with User Dropdown */}
           <div className="flex items-center space-x-4">
-            <Button variant="ghost" size="sm" className="relative">
+            {/* <Button variant="ghost" size="sm" className="relative">
               <Bell className="w-4 h-4" />
               <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center text-xs bg-red-500">
                 3
               </Badge>
-            </Button>
+            </Button> */}
             
             
             <DropdownMenu>
@@ -1223,18 +1223,18 @@ const RecruiterDashboard = () => {
                 <TabsTrigger value="outreach" className="flex items-center space-x-2 relative">
                   <MessageSquare className="w-4 h-4" />
                   <span>Communications</span>
-                  <Badge className="absolute -top-1 -right-1 h-4 w-4 flex items-center justify-center text-xs bg-red-500">
-                    2
-                  </Badge>
                 </TabsTrigger>
-                <TabsTrigger value="ai-ranking" className="flex items-center space-x-2">
+                {/* <TabsTrigger value="ai-ranking" className="flex items-center space-x-2">
                   <Brain className="w-4 h-4" />
                   <span>AI Ranking</span>
-                </TabsTrigger>
+                </TabsTrigger> */}
                 
-                <TabsTrigger value="analytics" className="flex items-center space-x-2">
+                <TabsTrigger value="analytics" className="flex items-center space-x-2 relative">
                   <BarChart3 className="w-4 h-4" />
                   <span>Analytics</span>
+                  <Badge className="absolute -top-1 -right-1 h-4 w-4 flex items-center justify-center text-xs bg-red-500" style={{width: 60}}>
+                    Premium
+                  </Badge>
                 </TabsTrigger>
                 <TabsTrigger value="ai-tools" className="flex items-center space-x-2">
                   <Brain className="w-4 h-4" />

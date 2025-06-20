@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import ScreeningDialog from './candidate-ranking/ScreeningDialog';
 import { generateScreeningQuestions, generateEmailContent } from '@/services/llm/groqService';
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 
 interface Candidate {
   id: string;
@@ -116,7 +117,7 @@ const MOCK_CANDIDATES: Candidate[] = [
 const SHORTLISTED_CANDIDATES_KEY = 'shortlisted_candidates';
 
 const CommunicationPipeline = () => {
-  const [candidates, setCandidates] = useState<Candidate[]>(MOCK_CANDIDATES);
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [showDialog, setShowDialog] = useState(false);
   const [currentStep, setCurrentStep] = useState<'questions' | 'email'>('questions');
@@ -131,6 +132,11 @@ const CommunicationPipeline = () => {
   const [emailContent, setEmailContent] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [showAnalysis, setShowAnalysis] = useState(false);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [analysisData, setAnalysisData] = useState<any>(null);
+  const [analysisCandidateId, setAnalysisCandidateId] = useState<string | null>(null);
 
   useEffect(() => {
     // Load shortlisted candidates from session storage
@@ -290,6 +296,31 @@ const CommunicationPipeline = () => {
     setSelectedCandidate(candidate);
   };
 
+  const handleViewAnalysis = async (candidate: Candidate) => {
+    setAnalysisCandidateId(candidate.id);
+    setShowAnalysis(true);
+    setAnalysisLoading(true);
+    setAnalysisError(null);
+    setAnalysisData(null);
+    try {
+      const recruiterToken = sessionStorage.getItem('recruiterToken');
+      if (!recruiterToken) throw new Error('Recruiter token not found. Please log in again.');
+      const shortlisted_candidates = sessionStorage.getItem('shortlisted_candidates');
+      const found = JSON.parse(shortlisted_candidates).find(item => item.candidate_token === candidate.candidate_token);
+      const candidate_id = found ? found.id : null;
+      const res = await fetch(`http://ec2-13-60-240-125.eu-north-1.compute.amazonaws.com/recruiter/candidate/${candidate_id}/all-rounds/`, {
+        headers: { 'Authorization': `Token ${recruiterToken}` }
+      });
+      if (!res.ok) throw new Error('Failed to fetch candidate analytics.');
+      const data = await res.json();
+      setAnalysisData(data);
+    } catch (err: any) {
+      setAnalysisError(err.message || 'Unknown error');
+    } finally {
+      setAnalysisLoading(false);
+    }
+  };
+
   const renderPipelineColumn = (status: Candidate['status'], title: string) => {
     const columnCandidates = candidates.filter(c => c.status === status);
     
@@ -379,14 +410,31 @@ const CommunicationPipeline = () => {
                   <Button 
                     size="sm" 
                     variant="outline"
-                    className="flex-1"
+                    className="mx-1 flex-1"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleViewAnalysis(candidate);
+                    }}
+                  >
+                    View Analysis
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    className="mx-1 flex-1"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleSelectCandidate(candidate);
                       setShowDialog(true);
+                      const nextStatus = {
+                        'shortlisted': 'pre-screening',
+                        'pre-screening': 'technical-interview',
+                        'technical-interview': 'hr-interview',
+                        'hr-interview': 'final-result'
+                      }[status] as Candidate['status'];
+                      moveCandidate(candidate.id, nextStatus)
                     }}
                   >
-                    <Brain className="w-4 h-4 mr-1" />
                     Start Screening
                   </Button>
                 </div>
@@ -464,8 +512,117 @@ const CommunicationPipeline = () => {
         open={showDialog}
         onOpenChange={setShowDialog}
       />
+
+      <Dialog open={showAnalysis} onOpenChange={setShowAnalysis}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Candidate Analysis</DialogTitle>
+          </DialogHeader>
+          {analysisLoading ? (
+            <div className="py-8 text-center">Loading analysis...</div>
+          ) : analysisError ? (
+            <div className="py-8 text-center text-red-500">{analysisError}</div>
+          ) : analysisData ? (
+            <Accordion type="multiple" className="w-full">
+              {/* 1. Profile Analytics */}
+              {/* <AccordionItem value="profile-analytics">
+                <AccordionTrigger>Profile Analytics</AccordionTrigger>
+                <AccordionContent>
+                  {Array.isArray(analysisData.candidate?.analytics) && analysisData.candidate.analytics.length > 0 ? (
+                    <ul className="list-disc pl-5 space-y-1">
+                      {analysisData.candidate.analytics.map((item: string, idx: number) => (
+                        <li key={idx}>{item}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div>The candidate has not attempted this round yet</div>
+                  )}
+                </AccordionContent>
+              </AccordionItem> */}
+              {/* 2. Prescreening */}
+              <AccordionItem value="pre-screening">
+                <AccordionTrigger>Prescreening</AccordionTrigger>
+                <AccordionContent>
+                  {analysisData.rounds?.find((r: any) => r.round === 'pre-screening') ? (
+                    <AnalysisRound round={analysisData.rounds.find((r: any) => r.round === 'pre-screening')} />
+                  ) : (
+                    <div>The candidate has not attempted this round yet</div>
+                  )}
+                </AccordionContent>
+              </AccordionItem>
+              {/* 3. Technical */}
+              <AccordionItem value="technical">
+                <AccordionTrigger>Technical</AccordionTrigger>
+                <AccordionContent>
+                  {analysisData.rounds?.find((r: any) => r.round === 'technical') ? (
+                    <AnalysisRound round={analysisData.rounds.find((r: any) => r.round === 'technical')} />
+                  ) : (
+                    <div>The candidate has not attempted this round yet</div>
+                  )}
+                </AccordionContent>
+              </AccordionItem>
+              {/* 4. HR Interview */}
+              <AccordionItem value="hr-interview">
+                <AccordionTrigger>HR Interview</AccordionTrigger>
+                <AccordionContent>
+                  {analysisData.rounds?.find((r: any) => r.round === 'hr-interview') ? (
+                    <AnalysisRound round={analysisData.rounds.find((r: any) => r.round === 'hr-interview')} />
+                  ) : (
+                    <div>The candidate has not attempted this round yet</div>
+                  )}
+                </AccordionContent>
+              </AccordionItem>
+              {/* 5. Final Round */}
+              <AccordionItem value="final-round">
+                <AccordionTrigger>Final Round</AccordionTrigger>
+                <AccordionContent>
+                  {analysisData.rounds?.find((r: any) => r.round === 'final-round') ? (
+                    <AnalysisRound round={analysisData.rounds.find((r: any) => r.round === 'final-round')} />
+                  ) : (
+                    <div>The candidate has not attempted this round yet</div>
+                  )}
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
+
+// Helper component for round analysis
+function AnalysisRound({ round }: { round: any }) {
+  if (!round?.llm_response) return <div>No analysis available.</div>;
+  const { question, answer, analysis, round_score, recommendation } = round.llm_response;
+  return (
+    <div className="space-y-2">
+      {question && <div><span className="font-semibold">Question:</span> {question}</div>}
+      {answer && <div><span className="font-semibold">Answer:</span> {answer}</div>}
+      {analysis && (
+        <div className="space-y-1">
+          {analysis.clarity && <div><span className="font-semibold">Clarity:</span> {analysis.clarity}</div>}
+          {analysis.strengths && Array.isArray(analysis.strengths) && analysis.strengths.length > 0 && (
+            <div><span className="font-semibold">Strengths:</span>
+              <ul className="list-disc pl-5">
+                {analysis.strengths.map((s: string, i: number) => <li key={i}>{s}</li>)}
+              </ul>
+            </div>
+          )}
+          {analysis.weaknesses && Array.isArray(analysis.weaknesses) && analysis.weaknesses.length > 0 && (
+            <div><span className="font-semibold">Weaknesses:</span>
+              <ul className="list-disc pl-5">
+                {analysis.weaknesses.map((w: string, i: number) => <li key={i}>{w}</li>)}
+              </ul>
+            </div>
+          )}
+          {analysis.understanding && <div><span className="font-semibold">Understanding:</span> {analysis.understanding}</div>}
+        </div>
+      )}
+      {typeof round_score !== 'undefined' && <div><span className="font-semibold">Score:</span> {round_score}</div>}
+      {recommendation && <div><span className="font-semibold">Recommendation:</span> {recommendation}</div>}
+    </div>
+  );
+}
 
 export default CommunicationPipeline; 
