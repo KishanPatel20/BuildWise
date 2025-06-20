@@ -95,7 +95,7 @@ const RecruiterProfile = () => {
       }
 
       // Fetch recruiter profile
-      const profileResponse = await axios.get(`/recruiter/recruiters/me/`, {
+      const profileResponse = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/recruiter/recruiters/me/`, {
         headers: { 'Authorization': `Token ${token}` }
       });
 
@@ -124,7 +124,7 @@ const RecruiterProfile = () => {
       });
 
       // Fetch departments
-      const departmentsResponse = await axios.get(`/recruiter/departments/`, {
+      const departmentsResponse = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/recruiter/departments/`, {
         headers: { 'Authorization': `Token ${token}` }
       });
 
@@ -139,7 +139,7 @@ const RecruiterProfile = () => {
       }
 
       // Fetch active roles
-      const rolesResponse = await axios.get(`/recruiter/active-roles/`, {
+      const rolesResponse = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/recruiter/active-roles/`, {
         headers: { 'Authorization': `Token ${token}` }
       });
 
@@ -190,7 +190,7 @@ const RecruiterProfile = () => {
         return;
       }
 
-      await axios.delete(`/recruiter/departments/${id}`, {
+      await axios.delete(`${import.meta.env.VITE_API_BASE_URL}/recruiter/departments/${id}`, {
         headers: { 'Authorization': `Token ${token}` }
       });
 
@@ -231,20 +231,20 @@ const RecruiterProfile = () => {
       for (const dept of departments) {
         if (dept.isNew) {
           await axios.post(
-            `/recruiter/departments/`,
+            `${import.meta.env.VITE_API_BASE_URL}/recruiter/departments/`,
             { name: dept.name },
             { headers }
           );
         } else if (dept.isModified) {
           await axios.patch(
-            `/recruiter/departments/${dept.id}/`,
+            `${import.meta.env.VITE_API_BASE_URL}/recruiter/departments/${dept.id}/`,
             { name: dept.name },
             { headers }
           );
         }
       }
 
-      const departmentsResponse = await axios.get(`/recruiter/departments/`, {
+      const departmentsResponse = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/recruiter/departments/`, {
         headers: { 'Authorization': `Token ${token}` }
       });
 
@@ -292,7 +292,7 @@ const RecruiterProfile = () => {
         return;
       }
 
-      await axios.delete(`/recruiter/active-roles/${id}`, {
+      await axios.delete(`${import.meta.env.VITE_API_BASE_URL}/recruiter/active-roles/${id}`, {
         headers: { 'Authorization': `Token ${token}` }
       });
 
@@ -333,20 +333,20 @@ const RecruiterProfile = () => {
       for (const role of roles) {
         if (role.isNew) {
           await axios.post(
-            `/recruiter/active-roles/`,
+            `${import.meta.env.VITE_API_BASE_URL}/recruiter/active-roles/`,
             { name: role.title },
             { headers }
           );
         } else if (role.isModified) {
           await axios.patch(
-            `/recruiter/active-roles/${role.id}/`,
+            `${import.meta.env.VITE_API_BASE_URL}/recruiter/active-roles/${role.id}/`,
             { name: role.title },
             { headers }
           );
         }
       }
 
-      const rolesResponse = await axios.get(`/recruiter/active-roles/`, {
+      const rolesResponse = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/recruiter/active-roles/`, {
         headers: { 'Authorization': `Token ${token}` }
       });
 
@@ -410,7 +410,7 @@ const RecruiterProfile = () => {
       };
 
       const response = await axios.patch(
-        `/recruiter/recruiters/me/`,
+        `${import.meta.env.VITE_API_BASE_URL}/recruiter/recruiters/me/`,
         personalInfo,
         {
           headers: {
@@ -453,7 +453,7 @@ const RecruiterProfile = () => {
       };
 
       const response = await axios.patch(
-        `/recruiter/recruiters/me/`,
+        `${import.meta.env.VITE_API_BASE_URL}/recruiter/recruiters/me/`,
         companyInfo,
         {
           headers: {

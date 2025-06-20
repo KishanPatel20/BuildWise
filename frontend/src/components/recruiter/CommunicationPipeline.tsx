@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import ScreeningDialog from './candidate-ranking/ScreeningDialog';
 import { generateScreeningQuestions, generateEmailContent } from '@/services/llm/groqService';
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 
 interface Candidate {
   id: string;
@@ -32,6 +33,7 @@ interface Candidate {
     nextSteps?: string[];
     interviewDate?: string;
   };
+  candidate_token?: string;
 }
 
 // Mock data for demonstration
@@ -45,7 +47,8 @@ const MOCK_CANDIDATES: Candidate[] = [
     status: 'shortlisted',
     lastUpdated: new Date().toISOString(),
     avatar: 'https://i.pravatar.cc/150?img=1',
-    notes: ['Strong React experience', 'Open to relocation']
+    notes: ['Strong React experience', 'Open to relocation'],
+    candidate_token: '1'
   },
   {
     id: '2',
@@ -60,7 +63,8 @@ const MOCK_CANDIDATES: Candidate[] = [
       score: 85,
       feedback: 'Strong technical background, needs clarification on system design experience',
       nextSteps: ['Schedule technical interview', 'Review system design portfolio']
-    }
+    },
+    candidate_token: '2'
   },
   {
     id: '3',
@@ -74,7 +78,8 @@ const MOCK_CANDIDATES: Candidate[] = [
     stageDetails: {
       interviewDate: '2024-03-25T14:00:00Z',
       nextSteps: ['Prepare system design questions', 'Review coding challenge']
-    }
+    },
+    candidate_token: '3'
   },
   {
     id: '4',
@@ -88,7 +93,8 @@ const MOCK_CANDIDATES: Candidate[] = [
     stageDetails: {
       feedback: 'Technical interview passed with flying colors',
       nextSteps: ['Discuss salary expectations', 'Review benefits package']
-    }
+    },
+    candidate_token: '4'
   },
   {
     id: '5',
@@ -103,14 +109,15 @@ const MOCK_CANDIDATES: Candidate[] = [
       score: 92,
       feedback: 'Excellent cultural fit, strong leadership skills',
       nextSteps: ['Prepare offer letter', 'Schedule onboarding']
-    }
+    },
+    candidate_token: '5'
   }
 ];
 
 const SHORTLISTED_CANDIDATES_KEY = 'shortlisted_candidates';
 
 const CommunicationPipeline = () => {
-  const [candidates, setCandidates] = useState<Candidate[]>(MOCK_CANDIDATES);
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [showDialog, setShowDialog] = useState(false);
   const [currentStep, setCurrentStep] = useState<'questions' | 'email'>('questions');
@@ -125,24 +132,32 @@ const CommunicationPipeline = () => {
   const [emailContent, setEmailContent] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [showAnalysis, setShowAnalysis] = useState(false);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [analysisData, setAnalysisData] = useState<any>(null);
+  const [analysisCandidateId, setAnalysisCandidateId] = useState<string | null>(null);
 
   useEffect(() => {
     // Load shortlisted candidates from session storage
     const stored = sessionStorage.getItem(SHORTLISTED_CANDIDATES_KEY);
     if (stored) {
       const shortlistedCandidates = JSON.parse(stored);
+      console.log('Loaded shortlistedCandidates from session:', shortlistedCandidates);
       // Transform the data to match our pipeline format
       const pipelineCandidates = shortlistedCandidates.map((c: any) => ({
-        id: c.user_token,
+        id: c.user_token || c.candidate_token,
         name: c.name,
         email: c.email,
         avatar: c.avatar,
         role: c.role,
         matchScore: c.matchScore,
-        status: 'shortlisted',
-        lastUpdated: new Date().toISOString(),
-        notes: []
+        status: c.status || 'shortlisted',
+        lastUpdated: c.lastUpdated || new Date().toISOString(),
+        notes: c.notes || [],
+        candidate_token: c.candidate_token || c.user_token || c.id || '',
       }));
+      console.log('Pipeline candidates after mapping:', pipelineCandidates.map(c => ({id: c.id, candidate_token: c.candidate_token})));
       setCandidates(prev => [...pipelineCandidates, ...prev]);
     }
   }, []);
@@ -235,11 +250,16 @@ const CommunicationPipeline = () => {
 
     setIsGenerating(true);
     try {
+      const recruiterToken = sessionStorage.getItem('recruiterToken') || '';
       const email = await generateEmailContent({
         candidateName: selectedCandidate!.name,
         candidateRole: selectedCandidate!.role,
         selectedQuestions,
-        tone: emailTone
+        tone: emailTone,
+        candidateId: selectedCandidate!.candidate_token || selectedCandidate!.id,
+        candidateToken: selectedCandidate!.candidate_token || selectedCandidate!.id,
+        recruiterId: '', // If you have recruiterId, use it here
+        recruiterToken,
       });
       setEmailContent(email);
       setCurrentStep('email');
@@ -267,6 +287,37 @@ const CommunicationPipeline = () => {
       toast.error('Failed to send email');
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const handleSelectCandidate = (candidate: Candidate) => {
+    // Log to verify
+    console.log('Selected candidate for dialog:', candidate);
+    setSelectedCandidate(candidate);
+  };
+
+  const handleViewAnalysis = async (candidate: Candidate) => {
+    setAnalysisCandidateId(candidate.id);
+    setShowAnalysis(true);
+    setAnalysisLoading(true);
+    setAnalysisError(null);
+    setAnalysisData(null);
+    try {
+      const recruiterToken = sessionStorage.getItem('recruiterToken');
+      if (!recruiterToken) throw new Error('Recruiter token not found. Please log in again.');
+      const shortlisted_candidates = sessionStorage.getItem('shortlisted_candidates');
+      const found = JSON.parse(shortlisted_candidates).find(item => item.candidate_token === candidate.candidate_token);
+      const candidate_id = found ? found.id : null;
+      const res = await fetch(`http://ec2-13-60-240-125.eu-north-1.compute.amazonaws.com/recruiter/candidate/${candidate_id}/all-rounds/`, {
+        headers: { 'Authorization': `Token ${recruiterToken}` }
+      });
+      if (!res.ok) throw new Error('Failed to fetch candidate analytics.');
+      const data = await res.json();
+      setAnalysisData(data);
+    } catch (err: any) {
+      setAnalysisError(err.message || 'Unknown error');
+    } finally {
+      setAnalysisLoading(false);
     }
   };
 
@@ -299,7 +350,10 @@ const CommunicationPipeline = () => {
             <Card 
               key={candidate.id}
               className="cursor-pointer hover:shadow-md transition-all duration-200 border-gray-100"
-              onClick={() => setSelectedCandidate(candidate)}
+              onClick={() => {
+                handleSelectCandidate(candidate);
+                setShowDialog(true);
+              }}
             >
               <CardContent className="p-4">
                 <div className="flex items-start space-x-3">
@@ -356,14 +410,31 @@ const CommunicationPipeline = () => {
                   <Button 
                     size="sm" 
                     variant="outline"
-                    className="flex-1"
+                    className="mx-1 flex-1"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setSelectedCandidate(candidate);
-                      setShowDialog(true);
+                      handleViewAnalysis(candidate);
                     }}
                   >
-                    <Brain className="w-4 h-4 mr-1" />
+                    View Analysis
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    className="mx-1 flex-1"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSelectCandidate(candidate);
+                      setShowDialog(true);
+                      const nextStatus = {
+                        'shortlisted': 'pre-screening',
+                        'pre-screening': 'technical-interview',
+                        'technical-interview': 'hr-interview',
+                        'hr-interview': 'final-result'
+                      }[status] as Candidate['status'];
+                      moveCandidate(candidate.id, nextStatus)
+                    }}
+                  >
                     Start Screening
                   </Button>
                 </div>
@@ -437,12 +508,121 @@ const CommunicationPipeline = () => {
 
       {/* Combined Screening Dialog */}
       <ScreeningDialog
-        candidate={selectedCandidate}
+        candidate={selectedCandidate ? { ...selectedCandidate, candidate_token: selectedCandidate.candidate_token || selectedCandidate.id } : null}
         open={showDialog}
         onOpenChange={setShowDialog}
       />
+
+      <Dialog open={showAnalysis} onOpenChange={setShowAnalysis}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Candidate Analysis</DialogTitle>
+          </DialogHeader>
+          {analysisLoading ? (
+            <div className="py-8 text-center">Loading analysis...</div>
+          ) : analysisError ? (
+            <div className="py-8 text-center text-red-500">{analysisError}</div>
+          ) : analysisData ? (
+            <Accordion type="multiple" className="w-full">
+              {/* 1. Profile Analytics */}
+              {/* <AccordionItem value="profile-analytics">
+                <AccordionTrigger>Profile Analytics</AccordionTrigger>
+                <AccordionContent>
+                  {Array.isArray(analysisData.candidate?.analytics) && analysisData.candidate.analytics.length > 0 ? (
+                    <ul className="list-disc pl-5 space-y-1">
+                      {analysisData.candidate.analytics.map((item: string, idx: number) => (
+                        <li key={idx}>{item}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div>The candidate has not attempted this round yet</div>
+                  )}
+                </AccordionContent>
+              </AccordionItem> */}
+              {/* 2. Prescreening */}
+              <AccordionItem value="pre-screening">
+                <AccordionTrigger>Prescreening</AccordionTrigger>
+                <AccordionContent>
+                  {analysisData.rounds?.find((r: any) => r.round === 'pre-screening') ? (
+                    <AnalysisRound round={analysisData.rounds.find((r: any) => r.round === 'pre-screening')} />
+                  ) : (
+                    <div>The candidate has not attempted this round yet</div>
+                  )}
+                </AccordionContent>
+              </AccordionItem>
+              {/* 3. Technical */}
+              <AccordionItem value="technical">
+                <AccordionTrigger>Technical</AccordionTrigger>
+                <AccordionContent>
+                  {analysisData.rounds?.find((r: any) => r.round === 'technical') ? (
+                    <AnalysisRound round={analysisData.rounds.find((r: any) => r.round === 'technical')} />
+                  ) : (
+                    <div>The candidate has not attempted this round yet</div>
+                  )}
+                </AccordionContent>
+              </AccordionItem>
+              {/* 4. HR Interview */}
+              <AccordionItem value="hr-interview">
+                <AccordionTrigger>HR Interview</AccordionTrigger>
+                <AccordionContent>
+                  {analysisData.rounds?.find((r: any) => r.round === 'hr-interview') ? (
+                    <AnalysisRound round={analysisData.rounds.find((r: any) => r.round === 'hr-interview')} />
+                  ) : (
+                    <div>The candidate has not attempted this round yet</div>
+                  )}
+                </AccordionContent>
+              </AccordionItem>
+              {/* 5. Final Round */}
+              <AccordionItem value="final-round">
+                <AccordionTrigger>Final Round</AccordionTrigger>
+                <AccordionContent>
+                  {analysisData.rounds?.find((r: any) => r.round === 'final-round') ? (
+                    <AnalysisRound round={analysisData.rounds.find((r: any) => r.round === 'final-round')} />
+                  ) : (
+                    <div>The candidate has not attempted this round yet</div>
+                  )}
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
+
+// Helper component for round analysis
+function AnalysisRound({ round }: { round: any }) {
+  if (!round?.llm_response) return <div>No analysis available.</div>;
+  const { question, answer, analysis, round_score, recommendation } = round.llm_response;
+  return (
+    <div className="space-y-2">
+      {question && <div><span className="font-semibold">Question:</span> {question}</div>}
+      {answer && <div><span className="font-semibold">Answer:</span> {answer}</div>}
+      {analysis && (
+        <div className="space-y-1">
+          {analysis.clarity && <div><span className="font-semibold">Clarity:</span> {analysis.clarity}</div>}
+          {analysis.strengths && Array.isArray(analysis.strengths) && analysis.strengths.length > 0 && (
+            <div><span className="font-semibold">Strengths:</span>
+              <ul className="list-disc pl-5">
+                {analysis.strengths.map((s: string, i: number) => <li key={i}>{s}</li>)}
+              </ul>
+            </div>
+          )}
+          {analysis.weaknesses && Array.isArray(analysis.weaknesses) && analysis.weaknesses.length > 0 && (
+            <div><span className="font-semibold">Weaknesses:</span>
+              <ul className="list-disc pl-5">
+                {analysis.weaknesses.map((w: string, i: number) => <li key={i}>{w}</li>)}
+              </ul>
+            </div>
+          )}
+          {analysis.understanding && <div><span className="font-semibold">Understanding:</span> {analysis.understanding}</div>}
+        </div>
+      )}
+      {typeof round_score !== 'undefined' && <div><span className="font-semibold">Score:</span> {round_score}</div>}
+      {recommendation && <div><span className="font-semibold">Recommendation:</span> {recommendation}</div>}
+    </div>
+  );
+}
 
 export default CommunicationPipeline; 

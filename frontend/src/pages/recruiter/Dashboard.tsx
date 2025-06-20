@@ -132,7 +132,8 @@ interface Candidate {
 }
 
 interface ShortlistedCandidate {
-  user_token: string;
+  id: string;
+  candidate_token: string;
   name: string;
   role: string;
   matchScore: number;
@@ -608,7 +609,7 @@ const RecruiterDashboard = () => {
         throw new Error('Recruiter details not loaded. Please try again.');
       }
 
-      const searchResponse = await fetch(`/recruiter/recruiters/${recruiterDetails.id}/create-workflow/`, {
+      const searchResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/recruiter/recruiters/${recruiterDetails.id}/create-workflow/`, {
         method: 'POST',
         headers: {
           'Authorization': `Token ${recruiterToken}`,
@@ -651,67 +652,98 @@ const RecruiterDashboard = () => {
       updateSearchProgress('Analyzing matches...', 70, 'Using AI to refine match scores');
       const refinedScores = await processSearchResultsWithGroq(searchResults);
 
-      // Process candidates with refined scores and workflow candidate IDs
-      const processedCandidates = await Promise.all(
-        searchResults.results.map(async (result, index) => {
-          const refinedScore = refinedScores[index];
-          const candidateDetails = await fetchCandidateDetails(result.user_token);
-          
-          // Find matching candidate from workflow response to get the ID
-          const workflowCandidate = searchResults.workflow?.matched_candidates.find(
-            c => c.candidate_token === result.user_token
-          );
-          
-          // If we have detailed candidate information, use it with refined score
-          if (candidateDetails) {
+      // Fetch all candidate profiles in parallel using their candidate_token
+      const matchedCandidates = searchResults.workflow?.matched_candidates || [];
+      const candidateProfiles = await Promise.all(
+        matchedCandidates.map(async (candidate, index) => {
+          try {
+            const res = await fetch(`${API_BASE_URL}/api/candidates/me/`, {
+              headers: {
+                'Authorization': `Token ${candidate.candidate_token}`
+              }
+            });
+            if (!res.ok) throw new Error('Profile fetch failed');
+            const profile = await res.json();
+            // Use refinedScores[index] for matchScore, aiInsight, etc.
             return {
-              ...candidateDetails,
-              id: result.user_token,
-              candidate_token: result.user_token,
-              matchScore: refinedScore.matchScore,
-              aiInsight: refinedScore.reasoning,
-              matchReasons: refinedScore.topMatches,
-              considerations: refinedScore.considerations,
+              id: profile.id.toString(),
+              candidate_token: candidate.candidate_token,
+              name: profile.name || candidate.name,
+              email: profile.email || candidate.email,
+              title: profile.current_job_title || candidate.current_role,
+              experience: profile.experience ? `${profile.experience} years` : 'Not specified',
+              skills: profile.skills ? (typeof profile.skills === 'string' ? profile.skills.split(',').map((s: string) => s.trim()) : profile.skills) : [],
+              location: profile.preferred_locations || profile.location || 'Not specified',
+              company: profile.current_company || profile.company || candidate.company || 'Not specified',
+              matchScore: refinedScores[index]?.matchScore || candidate.match_score,
+              aiInsight: refinedScores[index]?.reasoning || '',
+              matchReasons: refinedScores[index]?.topMatches || [],
+              considerations: refinedScores[index]?.considerations || [],
               status: 'new' as const,
-              source: 'AI Search'
+              source: 'AI Search',
+              summary: refinedScores[index]?.reasoning || '',
+              phone: profile.phone || '',
+              education: profile.education || '',
+              appliedDate: profile.created_at ? profile.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
+              lastContact: undefined,
+              availability: profile.availability || 'Not specified',
+              seniorityLevel: profile.seniorityLevel || 'Not specified',
+              topMatchedSkills: refinedScores[index]?.topMatches || [],
+              skillGaps: [],
+              projects: profile.projects || [],
+              avatar: '/placeholder.svg',
+              work_experiences: profile.work_experiences || [],
+              resume: profile.resume,
+              employment_type_preferences: profile.employment_type_preferences,
+              preferred_locations: profile.preferred_locations,
+              is_actively_looking: profile.is_actively_looking,
+              github_profile: profile.github_profile,
+              linkedin_profile: profile.linkedin_profile,
+              portfolio_link: profile.portfolio_link,
+            };
+          } catch (err) {
+            // Fallback to candidate basic info if fetch fails
+            return {
+              id: candidate.id.toString(),
+              candidate_token: candidate.candidate_token,
+              name: candidate.name,
+              email: candidate.email,
+              title: candidate.current_role,
+              experience: 'Not specified',
+              skills: [],
+              location: candidate.location || 'Not specified',
+              company: candidate.company || 'Not specified',
+              matchScore: refinedScores[index]?.matchScore || candidate.match_score,
+              aiInsight: refinedScores[index]?.reasoning || '',
+              matchReasons: refinedScores[index]?.topMatches || [],
+              considerations: refinedScores[index]?.considerations || [],
+              status: 'new' as const,
+              source: 'AI Search',
+              summary: refinedScores[index]?.reasoning || '',
+              phone: '',
+              education: '',
+              appliedDate: new Date().toISOString().split('T')[0],
+              lastContact: undefined,
+              availability: 'Not specified',
+              seniorityLevel: 'Not specified',
+              topMatchedSkills: refinedScores[index]?.topMatches || [],
+              skillGaps: [],
+              projects: [],
+              avatar: '/placeholder.svg',
+              work_experiences: [],
+              resume: '',
+              employment_type_preferences: '',
+              preferred_locations: '',
+              is_actively_looking: false,
+              github_profile: '',
+              linkedin_profile: '',
+              portfolio_link: '',
             };
           }
-
-          // Fallback to basic information with refined score
-          return {
-            id: result.user_token,
-            candidate_token: result.user_token,
-            name: result.name,
-            role: result.current_role,
-            title: result.current_role,
-            experience: 'Not specified',
-            location: 'Not specified',
-            skills: [],
-            topMatchedSkills: refinedScore.topMatches,
-            skillGaps: [],
-            score: refinedScore.matchScore,
-            matchScore: refinedScore.matchScore,
-            avatar: '/placeholder.svg',
-            summary: refinedScore.reasoning,
-            aiInsight: refinedScore.reasoning,
-            email: result.email,
-            phone: '',
-            status: 'new' as const,
-            company: result.company || 'Not specified',
-            education: '',
-            source: 'AI Search',
-            appliedDate: new Date().toISOString().split('T')[0],
-            availability: 'Not specified',
-            seniorityLevel: 'Not specified',
-            lastContact: undefined,
-            matchReasons: refinedScore.topMatches,
-            considerations: refinedScore.considerations,
-            projects: []
-          };
         })
       );
 
-      setFilteredCandidates(processedCandidates);
+      setFilteredCandidates(candidateProfiles);
 
       // Store search results with refined scores
       setLastSearchResults({
@@ -726,14 +758,14 @@ const RecruiterDashboard = () => {
         workflow: searchResults.workflow
       });
 
-      updateSearchProgress('Search complete!', 100, `Found ${processedCandidates.length} matching candidates`);
+      updateSearchProgress('Search complete!', 100, `Found ${candidateProfiles.length} matching candidates`);
       
       // Show success message with refined scores
       toast.success(
         <div className="space-y-2">
           <p>Search completed successfully!</p>
           <p className="text-sm text-gray-600">
-            Found {processedCandidates.length} matching candidates
+            Found {candidateProfiles.length} matching candidates
           </p>
           <p className="text-xs text-gray-500">
             Average match score: {
@@ -773,7 +805,7 @@ const RecruiterDashboard = () => {
       const candidate = filteredCandidates.find(c => c.id === candidateId);
       if (!candidate) return;
 
-      const isCurrentlyShortlisted = shortlistedCandidates.some(c => c.user_token === candidateId);
+      const isCurrentlyShortlisted = shortlistedCandidates.some(c => c.candidate_token === candidate.candidate_token);
 
       if (!isCurrentlyShortlisted) {
         // Use the stored workflow ID
@@ -782,7 +814,7 @@ const RecruiterDashboard = () => {
         }
 
         // Call API to shortlist the candidate
-        const shortlistResponse = await fetch('/recruiter/selected-candidates/', {
+        const shortlistResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/recruiter/selected-candidates/`, {
           method: 'POST',
           headers: {
             'Authorization': `Token ${recruiterToken}`,
@@ -804,7 +836,8 @@ const RecruiterDashboard = () => {
         // Update local state
         setShortlistedCandidates(prev => {
           const newShortlisted = [...prev, {
-            user_token: candidate.candidate_token,
+            id: candidate.id,
+            candidate_token: candidate.candidate_token,
             name: candidate.name,
             role: candidate.title,
             matchScore: candidate.matchScore
@@ -817,7 +850,7 @@ const RecruiterDashboard = () => {
       } else {
         // Remove from shortlist
         setShortlistedCandidates(prev => {
-          const newShortlisted = prev.filter(c => c.user_token !== candidate.candidate_token);
+          const newShortlisted = prev.filter(c => c.candidate_token !== candidate.candidate_token);
           saveShortlistedCandidates(newShortlisted);
           return newShortlisted;
         });
@@ -881,7 +914,7 @@ const RecruiterDashboard = () => {
 
   const getShortlistedCandidatesData = () => {
     return candidatesToShow.filter(candidate => 
-      shortlistedCandidates.some(c => c.user_token === candidate.id)
+      shortlistedCandidates.some(c => c.candidate_token === candidate.candidate_token)
     );
   };
 
@@ -894,7 +927,7 @@ const RecruiterDashboard = () => {
         throw new Error('No authorization token found');
       }
 
-      const response = await fetch(`/recruiter/recruiters/me`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/recruiter/recruiters/me`, {
         headers: {
           'Authorization': `Token ${recruiterToken}`
         }
@@ -920,7 +953,7 @@ const RecruiterDashboard = () => {
         throw new Error('No authorization token found');
       }
 
-      const response = await fetch(`/recruiter/workflows/`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/recruiter/workflows/`, {
         headers: {
           'Authorization': `Token ${recruiterToken}`
         }
@@ -936,7 +969,7 @@ const RecruiterDashboard = () => {
       // Fetch details for each workflow
       const detailsPromises = data.map(async (workflow: Workflow) => {
         const detailsResponse = await fetch(
-          `/recruiter/workflows/${workflow.id}/candidates`,
+          `${import.meta.env.VITE_API_BASE_URL}/recruiter/workflows/${workflow.id}/candidates`,
           {
             headers: {
               'Authorization': `Token ${recruiterToken}`
@@ -997,12 +1030,12 @@ const RecruiterDashboard = () => {
           
           {/* Enhanced Right Side with User Dropdown */}
           <div className="flex items-center space-x-4">
-            <Button variant="ghost" size="sm" className="relative">
+            {/* <Button variant="ghost" size="sm" className="relative">
               <Bell className="w-4 h-4" />
               <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center text-xs bg-red-500">
                 3
               </Badge>
-            </Button>
+            </Button> */}
             
             
             <DropdownMenu>
@@ -1190,18 +1223,18 @@ const RecruiterDashboard = () => {
                 <TabsTrigger value="outreach" className="flex items-center space-x-2 relative">
                   <MessageSquare className="w-4 h-4" />
                   <span>Communications</span>
-                  <Badge className="absolute -top-1 -right-1 h-4 w-4 flex items-center justify-center text-xs bg-red-500">
-                    2
-                  </Badge>
                 </TabsTrigger>
-                <TabsTrigger value="ai-ranking" className="flex items-center space-x-2">
+                {/* <TabsTrigger value="ai-ranking" className="flex items-center space-x-2">
                   <Brain className="w-4 h-4" />
                   <span>AI Ranking</span>
-                </TabsTrigger>
+                </TabsTrigger> */}
                 
-                <TabsTrigger value="analytics" className="flex items-center space-x-2">
+                <TabsTrigger value="analytics" className="flex items-center space-x-2 relative">
                   <BarChart3 className="w-4 h-4" />
                   <span>Analytics</span>
+                  <Badge className="absolute -top-1 -right-1 h-4 w-4 flex items-center justify-center text-xs bg-red-500" style={{width: 60}}>
+                    Premium
+                  </Badge>
                 </TabsTrigger>
                 <TabsTrigger value="ai-tools" className="flex items-center space-x-2">
                   <Brain className="w-4 h-4" />
@@ -1308,7 +1341,7 @@ const RecruiterDashboard = () => {
                             isSelected={selectedCandidates.includes(candidate.id)}
                             onSelect={handleCandidateSelect}
                             onShortlist={toggleShortlist}
-                            isShortlisted={shortlistedCandidates.some(c => c.user_token === candidate.id)}
+                            isShortlisted={shortlistedCandidates.some(c => c.candidate_token === candidate.candidate_token)}
                           />
                         ))}
                       </div>
